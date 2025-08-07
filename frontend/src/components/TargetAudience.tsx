@@ -4,7 +4,7 @@ import { Store, Users, ArrowRight } from "lucide-react";
 
 export function TargetAudience() {
   return (
-    <section className="py-24 bg-gradient-subtle">
+    <section id="target-audience" className="py-24 bg-gradient-subtle">
       <div className="container mx-auto px-4">
         <div className="text-center mb-16">
           <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-6">

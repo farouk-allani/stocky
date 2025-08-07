@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import { useAuthStore } from "@/lib/auth";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Store, User } from "lucide-react";
+import { Loader2, Store, User, X } from "lucide-react";
 
 interface LoginFormData {
   email: string;
@@ -37,7 +37,11 @@ interface RegisterFormData {
   businessType?: string;
 }
 
-export function AuthModal() {
+interface AuthModalProps {
+  onClose?: () => void;
+}
+
+export function AuthModal({ onClose }: AuthModalProps = {}) {
   const navigate = useNavigate();
   const { login, register, isLoading, user } = useAuthStore();
   const [loginData, setLoginData] = useState<LoginFormData>({
@@ -109,7 +113,17 @@ export function AuthModal() {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md relative">
+        {onClose && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute right-2 top-2 z-10"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
         <CardHeader>
           <CardTitle className="text-2xl text-center">Join Stocky</CardTitle>
           <CardDescription className="text-center">

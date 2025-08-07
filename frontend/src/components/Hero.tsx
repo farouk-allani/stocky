@@ -102,7 +102,17 @@ export function Hero() {
                 {user ? "Go to Dashboard" : "Get Started Free"}
                 <ArrowRight className="w-5 h-5" />
               </Button>
-              <Button variant="glass" size="lg" className="min-w-48">
+              <Button
+                variant="glass"
+                size="lg"
+                className="min-w-48"
+                onClick={() =>
+                  window.open(
+                    "https://www.youtube.com/watch?v=HVZ_fhclLZA",
+                    "_blank"
+                  )
+                }
+              >
                 Watch Demo
               </Button>
             </div>
@@ -117,7 +127,7 @@ export function Hero() {
       </section>
 
       {/* Auth Modal */}
-      {showAuthModal && <AuthModal />}
+      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
     </>
   );
 }

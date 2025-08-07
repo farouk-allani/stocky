@@ -14,7 +14,10 @@ import {
 
 export function HederaGuardianSection() {
   return (
-    <section className="py-20 bg-gradient-to-br from-green-50 to-emerald-50">
+    <section
+      id="guardian"
+      className="py-20 bg-gradient-to-br from-green-50 to-emerald-50"
+    >
       <div className="container mx-auto px-4">
         <div className="text-center mb-16">
           <Badge className="mb-4 bg-green-100 text-green-800 hover:bg-green-200">
