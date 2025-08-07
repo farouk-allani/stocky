@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Background circle -->
+  <circle cx="32" cy="32" r="30" fill="#10B981" stroke="#059669" stroke-width="2"/>
+  
+  <!-- Box/package icon representing inventory -->
+  <rect x="20" y="22" width="24" height="20" rx="2" fill="white" stroke="#047857" stroke-width="1.5"/>
+  
+  <!-- Tape on the box -->
+  <rect x="20" y="30" width="24" height="2" fill="#047857"/>
+  <rect x="30" y="22" width="2" height="20" fill="#047857"/>
+  
+  <!-- Leaf icon representing sustainability -->
+  <path d="M45 18 Q50 13 55 18 Q50 23 45 18 Q47 15 50 15" fill="#34D399" stroke="#059669" stroke-width="1"/>
+  
+  <!-- Dollar sign representing savings -->
+  <circle cx="16" cy="48" r="6" fill="#FCD34D" stroke="#F59E0B" stroke-width="1"/>
+  <text x="16" y="52" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" font-weight="bold" fill="#92400E">$</text>
+</svg>

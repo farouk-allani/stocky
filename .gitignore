@@ -1,0 +1,44 @@
+# Project Environment Files
+.env
+.env.local
+.env.production
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Dependency directories
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# Database
+*.db
+*.sqlite
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
+# Uploaded files
+uploads/
+
+# Prisma
+.env
+prisma/dev.db
+prisma/migrations/
+
+# Smart contracts compiled
+smart-contracts/build/
+smart-contracts/deployed-contracts.json
+
+# Cache
+.cache/
+*.tsbuildinfo

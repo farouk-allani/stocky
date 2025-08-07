@@ -1,0 +1,21 @@
+{
+  "name": "Stocky - Smart Food Waste Management",
+  "short_name": "Stocky",
+  "description": "Revolutionary platform connecting businesses with expiring inventory to consumers looking for discounted products",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#10B981",
+  "icons": [
+    {
+      "src": "/stocky-favicon.ico",
+      "sizes": "16x16 32x32",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "/stocky-logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
