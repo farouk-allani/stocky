@@ -3,9 +3,21 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAuthStore } from "@/lib/auth";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Store, User } from "lucide-react";
@@ -20,7 +32,7 @@ interface RegisterFormData {
   password: string;
   firstName: string;
   lastName: string;
-  role: 'BUSINESS' | 'CONSUMER';
+  role: "BUSINESS" | "CONSUMER";
   businessName?: string;
   businessType?: string;
 }
@@ -29,23 +41,23 @@ export function AuthModal() {
   const navigate = useNavigate();
   const { login, register, isLoading, user } = useAuthStore();
   const [loginData, setLoginData] = useState<LoginFormData>({
-    email: '',
-    password: ''
+    email: "",
+    password: "",
   });
   const [registerData, setRegisterData] = useState<RegisterFormData>({
-    email: '',
-    password: '',
-    firstName: '',
-    lastName: '',
-    role: 'CONSUMER'
+    email: "",
+    password: "",
+    firstName: "",
+    lastName: "",
+    role: "CONSUMER",
   });
 
   // Handle redirect after successful authentication
   const handleRedirectAfterAuth = (user: any) => {
-    if (user.role === 'BUSINESS') {
-      navigate('/business-dashboard');
+    if (user.role === "BUSINESS") {
+      navigate("/business-dashboard");
     } else {
-      navigate('/consumer-dashboard');
+      navigate("/consumer-dashboard");
     }
   };
 
@@ -57,7 +69,7 @@ export function AuthModal() {
         title: "Login successful!",
         description: "Welcome back to Stocky.",
       });
-      
+
       // Get the updated user state and redirect immediately
       const currentUser = useAuthStore.getState().user;
       if (currentUser) {
@@ -80,7 +92,7 @@ export function AuthModal() {
         title: "Registration successful!",
         description: "Welcome to Stocky!",
       });
-      
+
       // Get the updated user state and redirect immediately
       const currentUser = useAuthStore.getState().user;
       if (currentUser) {
@@ -110,7 +122,7 @@ export function AuthModal() {
               <TabsTrigger value="login">Login</TabsTrigger>
               <TabsTrigger value="register">Register</TabsTrigger>
             </TabsList>
-            
+
             {/* Login Form */}
             <TabsContent value="login" className="space-y-4">
               <form onSubmit={handleLogin} className="space-y-4">
@@ -121,7 +133,9 @@ export function AuthModal() {
                     type="email"
                     placeholder="Enter your email"
                     value={loginData.email}
-                    onChange={(e) => setLoginData({...loginData, email: e.target.value})}
+                    onChange={(e) =>
+                      setLoginData({ ...loginData, email: e.target.value })
+                    }
                     required
                   />
                 </div>
@@ -132,7 +146,9 @@ export function AuthModal() {
                     type="password"
                     placeholder="Enter your password"
                     value={loginData.password}
-                    onChange={(e) => setLoginData({...loginData, password: e.target.value})}
+                    onChange={(e) =>
+                      setLoginData({ ...loginData, password: e.target.value })
+                    }
                     required
                   />
                 </div>
@@ -143,7 +159,7 @@ export function AuthModal() {
                       Logging in...
                     </>
                   ) : (
-                    'Login'
+                    "Login"
                   )}
                 </Button>
               </form>
@@ -159,7 +175,12 @@ export function AuthModal() {
                       id="firstName"
                       placeholder="John"
                       value={registerData.firstName}
-                      onChange={(e) => setRegisterData({...registerData, firstName: e.target.value})}
+                      onChange={(e) =>
+                        setRegisterData({
+                          ...registerData,
+                          firstName: e.target.value,
+                        })
+                      }
                       required
                     />
                   </div>
@@ -169,12 +190,17 @@ export function AuthModal() {
                       id="lastName"
                       placeholder="Doe"
                       value={registerData.lastName}
-                      onChange={(e) => setRegisterData({...registerData, lastName: e.target.value})}
+                      onChange={(e) =>
+                        setRegisterData({
+                          ...registerData,
+                          lastName: e.target.value,
+                        })
+                      }
                       required
                     />
                   </div>
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="register-email">Email</Label>
                   <Input
@@ -182,11 +208,16 @@ export function AuthModal() {
                     type="email"
                     placeholder="Enter your email"
                     value={registerData.email}
-                    onChange={(e) => setRegisterData({...registerData, email: e.target.value})}
+                    onChange={(e) =>
+                      setRegisterData({
+                        ...registerData,
+                        email: e.target.value,
+                      })
+                    }
                     required
                   />
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="register-password">Password</Label>
                   <Input
@@ -194,7 +225,12 @@ export function AuthModal() {
                     type="password"
                     placeholder="Create a password"
                     value={registerData.password}
-                    onChange={(e) => setRegisterData({...registerData, password: e.target.value})}
+                    onChange={(e) =>
+                      setRegisterData({
+                        ...registerData,
+                        password: e.target.value,
+                      })
+                    }
                     required
                   />
                 </div>
@@ -203,8 +239,8 @@ export function AuthModal() {
                   <Label>I am a...</Label>
                   <Select
                     value={registerData.role}
-                    onValueChange={(value: 'BUSINESS' | 'CONSUMER') => 
-                      setRegisterData({...registerData, role: value})
+                    onValueChange={(value: "BUSINESS" | "CONSUMER") =>
+                      setRegisterData({ ...registerData, role: value })
                     }
                   >
                     <SelectTrigger>
@@ -227,33 +263,47 @@ export function AuthModal() {
                   </Select>
                 </div>
 
-                {registerData.role === 'BUSINESS' && (
+                {registerData.role === "BUSINESS" && (
                   <>
                     <div className="space-y-2">
                       <Label htmlFor="businessName">Business Name</Label>
                       <Input
                         id="businessName"
                         placeholder="Your Store Name"
-                        value={registerData.businessName || ''}
-                        onChange={(e) => setRegisterData({...registerData, businessName: e.target.value})}
+                        value={registerData.businessName || ""}
+                        onChange={(e) =>
+                          setRegisterData({
+                            ...registerData,
+                            businessName: e.target.value,
+                          })
+                        }
                         required
                       />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="businessType">Business Type</Label>
                       <Select
-                        value={registerData.businessType || ''}
-                        onValueChange={(value) => setRegisterData({...registerData, businessType: value})}
+                        value={registerData.businessType || ""}
+                        onValueChange={(value) =>
+                          setRegisterData({
+                            ...registerData,
+                            businessType: value,
+                          })
+                        }
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select business type" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="grocery-store">Grocery Store</SelectItem>
+                          <SelectItem value="grocery-store">
+                            Grocery Store
+                          </SelectItem>
                           <SelectItem value="restaurant">Restaurant</SelectItem>
                           <SelectItem value="bakery">Bakery</SelectItem>
                           <SelectItem value="cafe">Cafe</SelectItem>
-                          <SelectItem value="supermarket">Supermarket</SelectItem>
+                          <SelectItem value="supermarket">
+                            Supermarket
+                          </SelectItem>
                           <SelectItem value="other">Other</SelectItem>
                         </SelectContent>
                       </Select>
@@ -268,7 +318,7 @@ export function AuthModal() {
                       Creating account...
                     </>
                   ) : (
-                    'Create Account'
+                    "Create Account"
                   )}
                 </Button>
               </form>

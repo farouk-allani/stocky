@@ -13,32 +13,32 @@ datasource db {
 // SQLite doesn't support enums, using string fields with default values
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
+  id        String  @id @default(cuid())
+  email     String  @unique
   password  String
   firstName String
   lastName  String
-  role      String   @default("CONSUMER") // BUSINESS, CONSUMER, ADMIN
+  role      String  @default("CONSUMER") // BUSINESS, CONSUMER, ADMIN
   phone     String?
   address   String?
-  
+
   // Business specific fields
   businessName String?
   businessType String?
-  
+
   // Verification
-  isVerified     Boolean @default(false)
+  isVerified        Boolean @default(false)
   verificationToken String?
-  
+
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   // Relations
   businesses Business[]
   orders     Order[]
   reviews    Review[]
-  
+
   @@map("users")
 }
 
@@ -51,125 +51,125 @@ model Business {
   email       String
   latitude    Float?
   longitude   Float?
-  
+
   // Owner
   ownerId String
   owner   User   @relation(fields: [ownerId], references: [id])
-  
+
   // Verification
   isVerified Boolean @default(false)
-  
+
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   // Relations
   products Product[]
   orders   Order[]
-  
+
   @@map("businesses")
 }
 
 model Category {
-  id          String @id @default(cuid())
-  name        String @unique
+  id          String  @id @default(cuid())
+  name        String  @unique
   description String?
   icon        String?
-  
+
   // Relations
   products Product[]
-  
+
   @@map("categories")
 }
 
 model Product {
-  id          String        @id @default(cuid())
+  id          String  @id @default(cuid())
   name        String
   description String?
   imageUrl    String?
   category    String
-  
+
   // Pricing
   originalPrice Float
   currentPrice  Float
   discount      Float @default(0)
-  
+
   // Inventory
-  quantity     Int
-  unit         String // kg, pieces, liters, etc.
-  batchNumber  String?
-  
+  quantity    Int
+  unit        String // kg, pieces, liters, etc.
+  batchNumber String?
+
   // Dates
   manufacturedDate DateTime?
   expiryDate       DateTime
-  
+
   // Status
   status String @default("ACTIVE") // ACTIVE, DISCOUNTED, EXPIRED, SOLD
-  
+
   // AI Recognition data
   aiConfidence Float?
   aiTags       String? // JSON string of AI-detected tags
-  
+
   // Location within store
   location String?
-  
+
   // Business relation
   businessId String
   business   Business @relation(fields: [businessId], references: [id])
-  
+
   // Category relation
-  categoryId String
+  categoryId  String
   categoryRef Category @relation(fields: [categoryId], references: [id])
-  
+
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   // Relations
   orderItems OrderItem[]
   reviews    Review[]
-  
+
   // Blockchain tracking
   hederaTransactionId String?
-  
+
   @@map("products")
 }
 
 model Order {
-  id     String      @id @default(cuid())
+  id     String @id @default(cuid())
   status String @default("PENDING") // PENDING, CONFIRMED, PICKED_UP, CANCELLED
-  
+
   // Totals
-  subtotal     Float
-  discount     Float @default(0)
-  total        Float
-  
+  subtotal Float
+  discount Float @default(0)
+  total    Float
+
   // Customer
   customerId String
   customer   User   @relation(fields: [customerId], references: [id])
-  
+
   // Business
   businessId String
   business   Business @relation(fields: [businessId], references: [id])
-  
+
   // Pickup details
   pickupTime DateTime?
   notes      String?
-  
+
   // Payment
   paymentMethod String? // cash, card, hedera
   isPaid        Boolean @default(false)
-  
+
   // Blockchain
   hederaTransactionId String?
-  
+
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   // Relations
   items OrderItem[]
-  
+
   @@map("orders")
 }
 
@@ -177,67 +177,67 @@ model OrderItem {
   id       String @id @default(cuid())
   quantity Int
   price    Float // Price at time of order
-  
+
   // Relations
   orderId String
   order   Order  @relation(fields: [orderId], references: [id])
-  
+
   productId String
   product   Product @relation(fields: [productId], references: [id])
-  
+
   @@map("order_items")
 }
 
 model Review {
-  id      String @id @default(cuid())
+  id      String  @id @default(cuid())
   rating  Int // 1-5
   comment String?
-  
+
   // Relations
   userId String
   user   User   @relation(fields: [userId], references: [id])
-  
+
   productId String
   product   Product @relation(fields: [productId], references: [id])
-  
+
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@map("reviews")
 }
 
 model PriceHistory {
   id    String @id @default(cuid())
   price Float
-  
+
   // Relations
   productId String
-  
+
   // Timestamps
   createdAt DateTime @default(now())
-  
+
   @@map("price_history")
 }
 
 model AIAnalysis {
   id String @id @default(cuid())
-  
+
   // Image analysis
-  imageUrl     String
+  imageUrl      String
   detectedItems String? // JSON string
-  confidence   Float
-  
+  confidence    Float
+
   // Analysis results
-  freshness    Float? // 0-1 scale
-  quality      Float? // 0-1 scale
+  freshness          Float? // 0-1 scale
+  quality            Float? // 0-1 scale
   estimatedShelfLife Int? // hours
-  
+
   // Relations
   productId String?
-  
+
   // Timestamps
   createdAt DateTime @default(now())
-  
+
   @@map("ai_analyses")
 }

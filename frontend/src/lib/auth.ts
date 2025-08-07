@@ -1,11 +1,11 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 
 interface User {
   id: string;
   email: string;
   firstName: string;
   lastName: string;
-  role: 'BUSINESS' | 'CONSUMER' | 'ADMIN';
+  role: "BUSINESS" | "CONSUMER" | "ADMIN";
   businessName?: string;
   businessType?: string;
 }
@@ -25,41 +25,41 @@ interface RegisterData {
   password: string;
   firstName: string;
   lastName: string;
-  role: 'BUSINESS' | 'CONSUMER';
+  role: "BUSINESS" | "CONSUMER";
   businessName?: string;
   businessType?: string;
 }
 
-const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = "http://localhost:3001/api";
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
-  token: localStorage.getItem('token'),
+  token: localStorage.getItem("token"),
   isLoading: false,
 
   login: async (email: string, password: string) => {
     set({ isLoading: true });
     try {
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ email, password }),
       });
 
       if (!response.ok) {
-        throw new Error('Login failed');
+        throw new Error("Login failed");
       }
 
       const data = await response.json();
-      console.log('Login response:', data); // Debug log
-      
-      localStorage.setItem('token', data.token);
+      console.log("Login response:", data); // Debug log
+
+      localStorage.setItem("token", data.token);
       set({ user: data.user, token: data.token, isLoading: false });
-      console.log('User set in store:', data.user); // Debug log
+      console.log("User set in store:", data.user); // Debug log
     } catch (error) {
-      console.error('Login error:', error);
+      console.error("Login error:", error);
       set({ isLoading: false });
       throw error;
     }
@@ -69,30 +69,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true });
     try {
       const response = await fetch(`${API_BASE_URL}/auth/register`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(registerData),
       });
 
       if (!response.ok) {
-        throw new Error('Registration failed');
+        throw new Error("Registration failed");
       }
 
       const data = await response.json();
-      
-      localStorage.setItem('token', data.token);
+
+      localStorage.setItem("token", data.token);
       set({ user: data.user, token: data.token, isLoading: false });
     } catch (error) {
-      console.error('Registration error:', error);
+      console.error("Registration error:", error);
       set({ isLoading: false });
       throw error;
     }
   },
 
   logout: () => {
-    localStorage.removeItem('token');
+    localStorage.removeItem("token");
     set({ user: null, token: null });
   },
 

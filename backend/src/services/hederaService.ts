@@ -11,10 +11,10 @@ import {
   ContractExecuteTransaction,
   ContractFunctionParameters,
   FileCreateTransaction,
-  FileAppendTransaction
-} from '@hashgraph/sdk';
-import { getDatabase } from '../config/database.js';
-import { logger } from '../utils/logger.js';
+  FileAppendTransaction,
+} from "@hashgraph/sdk";
+import { getDatabase } from "../config/database.js";
+import { logger } from "../utils/logger.js";
 
 // Initialize Hedera client
 const client = Client.forTestnet();
@@ -22,7 +22,9 @@ const client = Client.forTestnet();
 // Set operator account (the account that pays for transactions)
 if (process.env.HEDERA_ACCOUNT_ID && process.env.HEDERA_PRIVATE_KEY) {
   const operatorAccountId = AccountId.fromString(process.env.HEDERA_ACCOUNT_ID);
-  const operatorPrivateKey = PrivateKey.fromString(process.env.HEDERA_PRIVATE_KEY);
+  const operatorPrivateKey = PrivateKey.fromString(
+    process.env.HEDERA_PRIVATE_KEY
+  );
   client.setOperator(operatorAccountId, operatorPrivateKey);
 }
 
@@ -45,22 +47,24 @@ export const createHederaAccount = async (): Promise<HederaAccount> => {
       .setAccountMemo("Stocky user account");
 
     const createAccountTxResponse = await createAccountTx.execute(client);
-    const createAccountReceipt = await createAccountTxResponse.getReceipt(client);
+    const createAccountReceipt = await createAccountTxResponse.getReceipt(
+      client
+    );
     const accountId = createAccountReceipt.accountId;
 
     if (!accountId) {
-      throw new Error('Failed to create account');
+      throw new Error("Failed to create account");
     }
 
-    logger.info('Hedera account created', { accountId: accountId.toString() });
+    logger.info("Hedera account created", { accountId: accountId.toString() });
 
     return {
       accountId: accountId.toString(),
       publicKey: publicKey.toString(),
-      privateKey: privateKey.toString()
+      privateKey: privateKey.toString(),
     };
   } catch (error) {
-    logger.error('Failed to create Hedera account:', error);
+    logger.error("Failed to create Hedera account:", error);
     throw error;
   }
 };
@@ -73,7 +77,7 @@ export const getAccountBalance = async (accountId: string): Promise<Hbar> => {
 
     return balance.hbars;
   } catch (error) {
-    logger.error('Failed to get account balance:', error);
+    logger.error("Failed to get account balance:", error);
     throw error;
   }
 };
@@ -98,16 +102,16 @@ export const transferHBAR = async (
     const transferTxResponse = await transferTx.execute(client);
     const transferReceipt = await transferTxResponse.getReceipt(client);
 
-    logger.info('HBAR transfer completed', {
+    logger.info("HBAR transfer completed", {
       from: fromAccountId,
       to: toAccountId,
       amount,
-      transactionId: transferTxResponse.transactionId?.toString()
+      transactionId: transferTxResponse.transactionId?.toString(),
     });
 
-    return transferTxResponse.transactionId?.toString() || '';
+    return transferTxResponse.transactionId?.toString() || "";
   } catch (error) {
-    logger.error('Failed to transfer HBAR:', error);
+    logger.error("Failed to transfer HBAR:", error);
     throw error;
   }
 };
@@ -127,7 +131,7 @@ export const createSmartContract = async (
     const fileId = fileCreateReceipt.fileId;
 
     if (!fileId) {
-      throw new Error('Failed to create file');
+      throw new Error("Failed to create file");
     }
 
     // Create the contract
@@ -137,18 +141,22 @@ export const createSmartContract = async (
       .setConstructorParameters(new ContractFunctionParameters());
 
     const contractCreateTxResponse = await contractCreateTx.execute(client);
-    const contractCreateReceipt = await contractCreateTxResponse.getReceipt(client);
+    const contractCreateReceipt = await contractCreateTxResponse.getReceipt(
+      client
+    );
     const contractId = contractCreateReceipt.contractId;
 
     if (!contractId) {
-      throw new Error('Failed to create contract');
+      throw new Error("Failed to create contract");
     }
 
-    logger.info('Smart contract deployed', { contractId: contractId.toString() });
+    logger.info("Smart contract deployed", {
+      contractId: contractId.toString(),
+    });
 
     return contractId.toString();
   } catch (error) {
-    logger.error('Failed to deploy smart contract:', error);
+    logger.error("Failed to deploy smart contract:", error);
     throw error;
   }
 };
@@ -169,8 +177,11 @@ export const executeContractFunction = async (
     if (parameters) {
       // This is a simplified version - in practice you'd need to handle different parameter types
       parameters.forEach((param, index) => {
-        if (typeof param === 'string') {
-          contractExecTx.setFunction(functionName, new ContractFunctionParameters().addString(param));
+        if (typeof param === "string") {
+          contractExecTx.setFunction(
+            functionName,
+            new ContractFunctionParameters().addString(param)
+          );
         }
         // Add more parameter type handling as needed
       });
@@ -179,18 +190,18 @@ export const executeContractFunction = async (
     const contractExecTxResponse = await contractExecTx.execute(client);
     const contractExecReceipt = await contractExecTxResponse.getReceipt(client);
 
-    logger.info('Contract function executed', {
+    logger.info("Contract function executed", {
       contractId,
       functionName,
-      transactionId: contractExecTxResponse.transactionId?.toString()
+      transactionId: contractExecTxResponse.transactionId?.toString(),
     });
 
     return {
       transactionId: contractExecTxResponse.transactionId?.toString(),
-      status: contractExecReceipt.status.toString()
+      status: contractExecReceipt.status.toString(),
     };
   } catch (error) {
-    logger.error('Failed to execute contract function:', error);
+    logger.error("Failed to execute contract function:", error);
     throw error;
   }
 };
@@ -205,14 +216,14 @@ export const recordTransaction = async (transactionData: {
 }) => {
   try {
     const db = getDatabase();
-    
+
     // Store transaction record in database
     // Note: You would need to create a Transaction model in your Prisma schema
-    logger.info('Transaction recorded', transactionData);
-    
+    logger.info("Transaction recorded", transactionData);
+
     return transactionData.transactionId;
   } catch (error) {
-    logger.error('Failed to record transaction:', error);
+    logger.error("Failed to record transaction:", error);
     throw error;
   }
 };

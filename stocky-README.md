@@ -1,48 +1,8 @@
-# Stocky - Blockchain-Powered Food Waste Reduction Platform
+# Stocky - Smart Food Waste Management Platform
 
-## 🌟 Project Overview
+## 🌟 Overview
 
-Stocky is an innovative blockchain-powered platform that connects businesses with surplus food to consumers seeking discounted products, while generating verifiable carbon credits through **Hedera Guardian** integration. Our mission is to reduce food waste, lower costs for consumers, and create measurable environmental impact with industry-leading trust and transparency.
-
-## 🛡️ Hedera Guardian Integration
-
-### What is Hedera Guardian?
-
-Hedera Guardian is an open-source platform that enables auditable and credible carbon markets with industry-leading trust and transparency. It provides:
-
-- **Measurement, Reporting, and Verification (MRV)** of environmental assets
-- **Policy framework** for carbon credit generation and validation
-- **Immutable ledger** for transparent carbon market operations
-- **Standardized schemas** for environmental impact data
-
-### Our Guardian Implementation
-
-Stocky leverages Hedera Guardian to create a **transparent carbon credit marketplace** based on verified food waste reduction activities:
-
-#### 🔗 Smart Contract Integration
-
-Our `StockyCarbonCredits` smart contract integrates directly with Guardian policies:
-
-```solidity
-struct CarbonCredit {
-    uint256 tokenId;
-    string guardianTransactionId;  // Links to Guardian MRV process
-    string mrvReportHash;          // Guardian verification report
-    uint256 co2Saved;             // Verified CO2 emissions prevented
-    uint256 wasteReduced;         // Weight of food waste diverted
-    string verificationStandard;   // Guardian-VCS compliance
-    bool isVerified;              // Guardian MRV completion status
-}
-```
-
-#### 🔄 Automated MRV Workflow
-
-1. **Food Rescue Transaction**: Consumer purchases discounted product
-2. **Impact Calculation**: Smart contract calculates CO2 savings using EPA emission factors
-3. **Guardian Policy Trigger**: Transaction triggers Guardian MRV policy execution
-4. **Verification Process**: Guardian verifies environmental impact data
-5. **Carbon Credit Minting**: Verified credits minted as NFTs on Hedera
-6. **Market Trading**: Credits available for corporate ESG compliance
+Stocky is a revolutionary full-stack platform that connects businesses with expiring inventory to consumers looking for discounted products. Using AI-powered product analysis and blockchain technology, we're reducing food waste while saving money for everyone.
 
 ## 🏗️ Architecture
 

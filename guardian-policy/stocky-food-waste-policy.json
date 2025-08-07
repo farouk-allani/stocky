@@ -1,0 +1,318 @@
+{
+  "policyName": "Stocky Food Waste Reduction Carbon Credits",
+  "policyDescription": "Hedera Guardian policy for generating verified carbon credits through food waste reduction activities on the Stocky platform",
+  "policyVersion": "1.0.0",
+  "policyTag": "stocky-food-waste-v1",
+
+  "schemas": {
+    "foodWasteDiversionSchema": {
+      "type": "object",
+      "properties": {
+        "transactionId": {
+          "type": "string",
+          "description": "Unique identifier for the food rescue transaction"
+        },
+        "businessId": {
+          "type": "string",
+          "description": "Business/merchant identifier on Stocky platform"
+        },
+        "productId": {
+          "type": "string",
+          "description": "Product identifier for the rescued food item"
+        },
+        "foodCategory": {
+          "type": "string",
+          "enum": ["Fruits", "Vegetables", "Dairy", "Meat", "Bakery", "Other"],
+          "description": "Category of food item rescued from waste"
+        },
+        "weightInGrams": {
+          "type": "number",
+          "minimum": 1,
+          "description": "Weight of food diverted from waste stream in grams"
+        },
+        "originalPrice": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Original retail price of the food item"
+        },
+        "discountedPrice": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Final price paid by consumer"
+        },
+        "expiryDate": {
+          "type": "string",
+          "format": "date",
+          "description": "Original expiry date of the food item"
+        },
+        "rescueDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Date and time when food was rescued"
+        },
+        "location": {
+          "type": "object",
+          "properties": {
+            "latitude": { "type": "number" },
+            "longitude": { "type": "number" },
+            "address": { "type": "string" }
+          },
+          "description": "Geographic location of the business"
+        },
+        "co2EmissionFactorUsed": {
+          "type": "number",
+          "description": "EPA emission factor used for CO2 calculation (kg CO2/kg food)"
+        },
+        "calculatedCO2Savings": {
+          "type": "number",
+          "description": "Calculated CO2 emissions prevented (in grams)"
+        },
+        "hederaTransactionHash": {
+          "type": "string",
+          "description": "Hedera transaction hash for payment"
+        }
+      },
+      "required": [
+        "transactionId",
+        "businessId",
+        "productId",
+        "foodCategory",
+        "weightInGrams",
+        "rescueDate",
+        "calculatedCO2Savings"
+      ]
+    },
+
+    "mrvReportSchema": {
+      "type": "object",
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "description": "Unique MRV report identifier"
+        },
+        "verificationPeriod": {
+          "type": "object",
+          "properties": {
+            "startDate": { "type": "string", "format": "date" },
+            "endDate": { "type": "string", "format": "date" }
+          }
+        },
+        "totalTransactions": {
+          "type": "number",
+          "description": "Number of food rescue transactions in period"
+        },
+        "totalWasteReduced": {
+          "type": "number",
+          "description": "Total weight of food diverted from waste (kg)"
+        },
+        "totalCO2Savings": {
+          "type": "number",
+          "description": "Total CO2 emissions prevented (kg)"
+        },
+        "verificationMethodology": {
+          "type": "string",
+          "default": "EPA Food Waste Emission Factors + Guardian MRV",
+          "description": "Methodology used for verification"
+        },
+        "verifierDetails": {
+          "type": "object",
+          "properties": {
+            "organization": { "type": "string" },
+            "accreditation": { "type": "string" },
+            "verifierId": { "type": "string" }
+          }
+        },
+        "carbonStandard": {
+          "type": "string",
+          "enum": ["VCS", "CDM", "Gold Standard", "Guardian-VCS"],
+          "default": "Guardian-VCS"
+        },
+        "qualityAssurance": {
+          "type": "object",
+          "properties": {
+            "dataIntegrityCheck": { "type": "boolean" },
+            "blockchainVerification": { "type": "boolean" },
+            "thirdPartyValidation": { "type": "boolean" }
+          }
+        }
+      },
+      "required": [
+        "reportId",
+        "verificationPeriod",
+        "totalTransactions",
+        "totalWasteReduced",
+        "totalCO2Savings"
+      ]
+    }
+  },
+
+  "policyWorkflow": {
+    "steps": [
+      {
+        "id": "1",
+        "name": "Data Collection",
+        "type": "automaticCollection",
+        "description": "Automatic collection of food rescue transaction data from Stocky platform",
+        "dataSource": "stocky-api",
+        "schema": "foodWasteDiversionSchema",
+        "triggers": ["transaction_completed", "order_fulfilled"]
+      },
+      {
+        "id": "2",
+        "name": "Impact Calculation",
+        "type": "calculation",
+        "description": "Calculate CO2 savings using EPA emission factors",
+        "formula": "weight_kg * emission_factor_per_category",
+        "emissionFactors": {
+          "Fruits": 1.1,
+          "Vegetables": 0.9,
+          "Dairy": 3.2,
+          "Meat": 8.5,
+          "Bakery": 1.5,
+          "Other": 1.5
+        }
+      },
+      {
+        "id": "3",
+        "name": "Data Validation",
+        "type": "validation",
+        "description": "Validate transaction data and CO2 calculations",
+        "validationRules": [
+          "weight > 0",
+          "rescueDate <= expiryDate",
+          "co2Savings = weight * emissionFactor",
+          "hederaTransactionHash exists and valid"
+        ]
+      },
+      {
+        "id": "4",
+        "name": "Aggregation",
+        "type": "aggregation",
+        "description": "Aggregate data for periodic MRV reporting",
+        "aggregationPeriod": "monthly",
+        "groupBy": ["businessId", "foodCategory"]
+      },
+      {
+        "id": "5",
+        "name": "Third-Party Verification",
+        "type": "externalVerification",
+        "description": "Independent verification by accredited third party",
+        "verifierRequirements": {
+          "accreditation": ["ISO 14065", "VCS Accredited"],
+          "expertise": ["carbon accounting", "food waste", "LCA"]
+        },
+        "verificationScope": [
+          "data accuracy",
+          "methodology compliance",
+          "calculation verification",
+          "blockchain integrity"
+        ]
+      },
+      {
+        "id": "6",
+        "name": "MRV Report Generation",
+        "type": "reportGeneration",
+        "description": "Generate comprehensive MRV report",
+        "schema": "mrvReportSchema",
+        "includes": [
+          "verification statement",
+          "methodology documentation",
+          "data quality assessment",
+          "carbon credit eligibility"
+        ]
+      },
+      {
+        "id": "7",
+        "name": "Carbon Credit Issuance",
+        "type": "creditIssuance",
+        "description": "Issue verified carbon credits as NFTs",
+        "issuanceRatio": "1 credit per 1000 kg CO2 saved",
+        "creditStandard": "Guardian-VCS",
+        "nftContract": "StockyCarbonCredits",
+        "registryIntegration": true
+      }
+    ]
+  },
+
+  "roles": {
+    "policyOwner": {
+      "name": "Stocky Platform",
+      "permissions": ["policy_management", "data_submission", "credit_issuance"]
+    },
+    "verifier": {
+      "name": "Accredited Third-Party Verifier",
+      "permissions": [
+        "data_verification",
+        "report_approval",
+        "quality_assurance"
+      ],
+      "requirements": ["ISO 14065 accreditation", "carbon market experience"]
+    },
+    "business": {
+      "name": "Food Business/Merchant",
+      "permissions": ["data_viewing", "credit_ownership", "transaction_history"]
+    },
+    "registry": {
+      "name": "Carbon Credit Registry",
+      "permissions": [
+        "credit_registration",
+        "market_integration",
+        "compliance_tracking"
+      ]
+    }
+  },
+
+  "tokens": {
+    "carbonCredit": {
+      "tokenName": "Stocky Carbon Credit",
+      "tokenSymbol": "SCC",
+      "tokenType": "non-fungible",
+      "decimals": 0,
+      "description": "NFT representing verified carbon credits from food waste reduction",
+      "metadata": {
+        "standard": "Guardian-VCS",
+        "methodology": "EPA Food Waste Emission Factors",
+        "verification": "Third-party verified",
+        "vintage": "date of food rescue",
+        "geography": "transaction location",
+        "co2Quantity": "calculated emissions prevented"
+      }
+    }
+  },
+
+  "integrations": {
+    "carbonRegistries": [
+      {
+        "name": "Verra VCS Registry",
+        "type": "voluntary",
+        "apiEndpoint": "https://registry.verra.org/api",
+        "standardCompliance": "VCS"
+      },
+      {
+        "name": "Gold Standard Registry",
+        "type": "voluntary",
+        "apiEndpoint": "https://registry.goldstandard.org/api",
+        "standardCompliance": "Gold Standard"
+      }
+    ],
+    "dataProviders": [
+      {
+        "name": "Stocky Platform API",
+        "endpoint": "https://api.stocky.app/guardian-webhook",
+        "authentication": "API_KEY",
+        "dataTypes": ["transactions", "products", "businesses"]
+      }
+    ]
+  },
+
+  "compliance": {
+    "standards": ["VCS", "CDM", "Gold Standard"],
+    "methodologies": ["EPA Food Waste LCA", "Guardian MRV Framework"],
+    "qualityAssurance": {
+      "dataIntegrity": "blockchain verification",
+      "auditTrail": "immutable ledger",
+      "transparency": "public policy and verification reports"
+    },
+    "esgFrameworks": ["GRI", "TCFD", "SASB"]
+  }
+}
