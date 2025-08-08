@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/lib/auth";
 import { useProductStore, useConsumerStore, useOrderStore } from "@/lib/stores";
-import { demoHederaWallet } from "@/lib/demo-hedera-wallet";
+import { realHederaWallet } from "@/lib/real-hedera-wallet";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
 import {
   Card,
@@ -36,90 +37,8 @@ import {
   Leaf,
   Truck,
   CreditCard,
+  ExternalLink,
 } from "lucide-react";
-
-// Mock data - in a real app this would come from the API
-const MOCK_PRODUCTS = [
-  {
-    id: "1",
-    name: "Organic Bananas",
-    description:
-      "Fresh organic bananas, slightly overripe - perfect for smoothies!",
-    originalPrice: 4.99,
-    discountedPrice: 2.99,
-    discountPercentage: 40,
-    expiryDate: "2025-08-09",
-    category: "Fruits",
-    imageUrl:
-      "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=400",
-    businessId: "1",
-    businessName: "Green Grocer",
-    location: "Downtown Market, 123 Main St",
-    latitude: 40.7128,
-    longitude: -74.006,
-    quantity: 15,
-    status: "ACTIVE" as const,
-    isOrganic: true,
-    tags: ["organic", "fruit", "healthy"],
-    createdAt: "2025-08-07T08:00:00Z",
-    updatedAt: "2025-08-07T08:00:00Z",
-  },
-  {
-    id: "2",
-    name: "Artisan Bread",
-    description: "Freshly baked sourdough bread from this morning, ends today!",
-    originalPrice: 8.99,
-    discountedPrice: 4.99,
-    discountPercentage: 44,
-    expiryDate: "2025-08-08",
-    category: "Bakery",
-    imageUrl: "https://images.unsplash.com/photo-1549931319-a545dcf3bc73?w=400",
-    businessId: "2",
-    businessName: "Corner Bakery",
-    location: "Artisan Street, 456 Baker Ave",
-    latitude: 40.7589,
-    longitude: -73.9851,
-    quantity: 8,
-    status: "ACTIVE" as const,
-    isOrganic: false,
-    tags: ["bread", "bakery", "artisan"],
-    createdAt: "2025-08-07T06:00:00Z",
-    updatedAt: "2025-08-07T06:00:00Z",
-  },
-  {
-    id: "3",
-    name: "Premium Yogurt",
-    description:
-      "Greek yogurt variety pack, expires tomorrow but still delicious!",
-    originalPrice: 12.99,
-    discountedPrice: 6.99,
-    discountPercentage: 46,
-    expiryDate: "2025-08-08",
-    category: "Dairy",
-    imageUrl:
-      "https://images.unsplash.com/photo-1488477181946-6428a0291777?w=400",
-    businessId: "1",
-    businessName: "Green Grocer",
-    location: "Downtown Market, 123 Main St",
-    latitude: 40.7128,
-    longitude: -74.006,
-    quantity: 12,
-    status: "ACTIVE" as const,
-    isOrganic: true,
-    tags: ["dairy", "protein", "healthy"],
-    createdAt: "2025-08-07T07:30:00Z",
-    updatedAt: "2025-08-07T07:30:00Z",
-  },
-];
-
-const MOCK_CONSUMER_STATS = {
-  totalSaved: 156.78,
-  totalOrders: 23,
-  averageDiscount: 38,
-  favoriteStores: ["Green Grocer", "Corner Bakery"],
-  monthlySpending: 89.45,
-  co2Saved: 12.4,
-};
 
 export function ConsumerDashboard() {
   const navigate = useNavigate();
@@ -147,6 +66,7 @@ export function ConsumerDashboard() {
   const { createOrder } = useOrderStore();
 
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [dataLoading, setDataLoading] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [showProductModal, setShowProductModal] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
@@ -160,7 +80,7 @@ export function ConsumerDashboard() {
   const [connectingWallet, setConnectingWallet] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
       setIsCheckingAuth(false);
 
       if (!user || user.role !== "CONSUMER") {
@@ -168,10 +88,38 @@ export function ConsumerDashboard() {
         return;
       }
 
-      // Load mock data immediately for demo
-      setProducts(MOCK_PRODUCTS);
-      setStats(MOCK_CONSUMER_STATS);
-      setFavorites([MOCK_PRODUCTS[0]]); // Mock favorite
+      // Load real data from API
+      try {
+        setDataLoading(true);
+
+        // Fetch products from backend
+        const productsData = await api.getProducts();
+        setProducts(productsData);
+
+        // Fetch consumer stats from backend
+        const statsData = await api.getConsumerStats();
+        setStats(statsData);
+
+        // Fetch favorites from backend
+        const favoritesData = await api.getFavorites();
+        setFavorites(favoritesData);
+
+        setDataLoading(false);
+      } catch (error) {
+        console.error("Failed to load data:", error);
+        // Fallback to empty data if API fails (no mocks)
+        setProducts([]);
+        setStats({
+          totalSaved: 0,
+          totalOrders: 0,
+          averageDiscount: 0,
+          favoriteStores: [],
+          monthlySpending: 0,
+          co2Saved: 0,
+        } as any);
+        setFavorites([]);
+        setDataLoading(false);
+      }
 
       // Try to get user location
       getCurrentLocation().catch(console.error);
@@ -185,14 +133,13 @@ export function ConsumerDashboard() {
 
   const checkWalletConnection = async () => {
     try {
-      if (demoHederaWallet.isConnected()) {
-        const address = demoHederaWallet.getWalletAddress();
+      const addr = await realHederaWallet.getAddress();
+      if (addr) {
+        const address = addr;
         setWalletAddress(address);
         setWalletConnected(true);
-
-        // Mock balance for demo
-        const mockBalance = (Math.random() * 100 + 25).toFixed(4);
-        setWalletBalance(mockBalance);
+        // Fetch real balance
+        // (balance fetched on connect flow; optional here)
       }
     } catch (error) {
       console.error("Failed to check wallet connection:", error);
@@ -201,7 +148,7 @@ export function ConsumerDashboard() {
 
   const handleConnectWallet = async () => {
     // Check for MetaMask first
-    if (!demoHederaWallet.isMetaMaskInstalled()) {
+    if (!realHederaWallet.isMetaMaskInstalled()) {
       toast.error("MetaMask Required", {
         description:
           "Please install MetaMask extension to connect your wallet. Visit metamask.io to download and install MetaMask.",
@@ -215,9 +162,9 @@ export function ConsumerDashboard() {
 
     setConnectingWallet(true);
     try {
-      const walletInfo = await demoHederaWallet.connectWallet();
+      const walletInfo = await realHederaWallet.connectWallet();
       setWalletAddress(walletInfo.address);
-      setWalletBalance((Math.random() * 100 + 25).toFixed(4)); // Mock balance
+      setWalletBalance(walletInfo.balance);
       setWalletConnected(true);
 
       toast.success("🎉 Wallet Connected Successfully!", {
@@ -250,7 +197,7 @@ export function ConsumerDashboard() {
 
   const handleDisconnectWallet = async () => {
     try {
-      await demoHederaWallet.disconnectWallet();
+      // No explicit disconnect for real provider; just clear state
       setWalletConnected(false);
       setWalletAddress(null);
       setWalletBalance(null);
@@ -266,30 +213,10 @@ export function ConsumerDashboard() {
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
-    // Filter products based on search
-    if (query) {
-      const filtered = MOCK_PRODUCTS.filter(
-        (product) =>
-          product.name.toLowerCase().includes(query.toLowerCase()) ||
-          product.description.toLowerCase().includes(query.toLowerCase()) ||
-          product.businessName.toLowerCase().includes(query.toLowerCase())
-      );
-      setProducts(filtered);
-    } else {
-      setProducts(MOCK_PRODUCTS);
-    }
   };
 
   const handleCategoryFilter = (category: string) => {
     setSelectedCategory(category);
-    if (category === "all" || !category) {
-      setProducts(MOCK_PRODUCTS);
-    } else {
-      const filtered = MOCK_PRODUCTS.filter(
-        (product) => product.category.toLowerCase() === category.toLowerCase()
-      );
-      setProducts(filtered);
-    }
   };
 
   const handleProductClick = (product: any) => {
@@ -320,7 +247,7 @@ export function ConsumerDashboard() {
     setProcessing(true);
     try {
       // Check if wallet is available for payment
-      if (!demoHederaWallet.isMetaMaskInstalled()) {
+      if (!realHederaWallet.isMetaMaskInstalled()) {
         toast.error("MetaMask Required", {
           description:
             "MetaMask is required for secure blockchain payments. Please install MetaMask to continue.",
@@ -332,95 +259,134 @@ export function ConsumerDashboard() {
         return;
       }
 
-      // Simulate order creation with real Hedera transaction
-      const orderData = {
-        productId: selectedProduct.id,
-        quantity: orderQuantity,
-        totalAmount: selectedProduct.discountedPrice * orderQuantity,
-        pickupTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(), // 2 hours from now
-        paymentMethod: "HEDERA_HBAR",
+      // Prepare order data and attempt on-chain transaction
+      const orderData: any = {
+        items: [{ productId: selectedProduct.id, quantity: orderQuantity }],
+        pickupTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+        paymentMethod: "hedera",
         notes: `Order placed via Stocky app. Pickup location: ${selectedProduct.location}`,
       };
 
-      // Show payment processing
-      toast.loading("💳 Processing payment with MetaMask...", {
+      toast.loading("💳 Initiating payment & on-chain record...", {
         id: "payment",
       });
 
-      // Trigger real MetaMask payment transaction
+      let txId = `tx-${Date.now()}`;
+      let paymentTxHash: string | undefined;
+      let escrowInfo: any | undefined;
+      let createdOrder: any | null = null;
+      // Fetch on-chain product pricing if available
+      let onChainPricing: { currentPrice?: string } = {};
       try {
-        const paymentTxHash =
-          await demoHederaWallet.sendRealMetaMaskTransaction(
-            `0x${((orderData.totalAmount * 1000000000000000000) / 100).toString(
-              16
-            )}` // Convert to wei equivalent
+        const onChainProductId = (selectedProduct as any).productOnChainId;
+        if (onChainProductId) {
+          const token = localStorage.getItem("token");
+          const resp = await fetch(
+            (import.meta.env.VITE_API_URL || "http://localhost:3001") +
+              `/api/hedera/evm/product/${onChainProductId}`,
+            { headers: { Authorization: token ? `Bearer ${token}` : "" } }
           );
-
-        toast.success("✅ Payment confirmed!", { id: "payment" });
-
-        // Simulate processing delay
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-
-        await createOrder(orderData);
-
-        // Show success toast
-        toast.success("🎉 Order Placed Successfully!", {
-          description: `Pickup Time: ${new Date(
-            orderData.pickupTime
-          ).toLocaleString()}\nLocation: ${
-            selectedProduct.location
-          }\n\nPayment Hash: ${paymentTxHash.slice(
-            0,
-            10
-          )}...\nHedera payment processed securely!`,
-          duration: 6000,
-          action: {
-            label: "View Transaction",
-            onClick: () =>
-              window.open(
-                `https://hashscan.io/testnet/transaction/${paymentTxHash}`,
-                "_blank"
-              ),
-          },
-        });
-
-        setShowProductModal(false);
-        setSelectedProduct(null);
-      } catch (paymentError: any) {
-        toast.dismiss("payment");
-
-        if (paymentError.message.includes("rejected")) {
-          toast.error("❌ Payment Cancelled", {
-            description:
-              "You cancelled the payment in MetaMask. Your order was not placed.",
-          });
-        } else if (paymentError.message.includes("insufficient funds")) {
-          toast.error("❌ Insufficient Funds", {
-            description:
-              "You don't have enough ETH to complete this payment. Please add funds to your wallet.",
-          });
-        } else {
-          // For demo: Continue with order even if payment fails
-          toast.warning("⚠️ Payment Error - Demo Mode", {
-            description:
-              "Payment failed but continuing with demo order for recording purposes.",
-          });
-
-          await createOrder(orderData);
-
-          setTimeout(() => {
-            toast.success("📦 Demo Order Placed", {
-              description: `Demo order created successfully!\nPickup Time: ${new Date(
-                orderData.pickupTime
-              ).toLocaleString()}\nLocation: ${selectedProduct.location}`,
-              duration: 4000,
-            });
-          }, 1000);
-
-          setShowProductModal(false);
-          setSelectedProduct(null);
+          if (resp.ok) {
+            onChainPricing = await resp.json();
+          }
         }
+      } catch (_) {}
+
+      // Create order first (DB) without payment references yet
+      try {
+        createdOrder = await createOrder(orderData);
+      } catch (orderErr: any) {
+        throw new Error(orderErr?.message || "Order creation failed");
       }
+      // Attempt server-side escrow payment referencing real orderId
+      try {
+        const sellerId = (selectedProduct as any).businessId;
+        const buyerId = user.id;
+        const amountWei = onChainPricing.currentPrice
+          ? BigInt(onChainPricing.currentPrice)
+          : BigInt(
+              Math.max(
+                1,
+                Math.round(
+                  selectedProduct.discountedPrice * orderQuantity * 1e18
+                )
+              )
+            );
+        const payResp = await api.createPayment({
+          orderId: createdOrder.id,
+          amount: amountWei.toString(),
+          buyerId,
+          sellerId,
+        });
+        escrowInfo = payResp?.payment;
+        if (escrowInfo?.txHash) {
+          paymentTxHash = escrowInfo.txHash;
+          toast.message("🔒 Payment escrowed on-chain", { id: "payment" });
+        }
+      } catch (escErr: any) {
+        console.warn("Escrow payment creation failed (continuing)", escErr);
+      }
+      try {
+        // TEMP seller address placeholder; replace with product.businessWallet when available
+        const sellerAddress =
+          (selectedProduct as any).businessWalletAddress ||
+          import.meta.env.VITE_SELLER_FALLBACK_ADDRESS;
+        if (sellerAddress) {
+          const hbarAmount =
+            selectedProduct.discountedPrice * orderQuantity * 0.00000001; // scale demo (prevent large test spend)
+          const pay = await realHederaWallet.sendHbar(
+            sellerAddress,
+            hbarAmount
+          );
+          paymentTxHash = pay.txHash;
+          orderData.paymentTxHash = paymentTxHash;
+          toast.message("HBAR transfer sent", { id: "payment" });
+        }
+      } catch (payErr: any) {
+        console.warn("HBAR transfer failed (continuing)", payErr);
+        toast.error("HBAR transfer failed (continuing without payment)", {
+          description: payErr?.message?.slice(0, 140),
+          id: "payment",
+        });
+      }
+      try {
+        const onChainProductId = (selectedProduct as any).productOnChainId;
+        if (onChainProductId) {
+          const amountWei = onChainPricing.currentPrice
+            ? BigInt(onChainPricing.currentPrice)
+            : BigInt(
+                Math.max(
+                  1,
+                  Math.round(
+                    selectedProduct.discountedPrice * orderQuantity * 1e18
+                  )
+                )
+              );
+          const onChain = await realHederaWallet.createTransaction(
+            txId,
+            onChainProductId,
+            user.id,
+            amountWei
+          );
+          toast.success("✅ On-chain transaction submitted", { id: "payment" });
+        }
+      } catch (chainErr: any) {
+        console.warn(
+          "On-chain createTransaction failed (continuing)",
+          chainErr
+        );
+      }
+
+      toast.success("🎉 Order Placed Successfully!", {
+        description: `Pickup Time: ${new Date(
+          orderData.pickupTime
+        ).toLocaleString()}\nLocation: ${selectedProduct.location}\nPayment: ${
+          escrowInfo?.status || "N/A"
+        }`,
+        duration: 6000,
+      });
+      setShowProductModal(false);
+      setSelectedProduct(null);
     } catch (error) {
       toast.error("❌ Order Failed", {
         description: `Failed to place order: ${error}`,
@@ -818,100 +784,124 @@ export function ConsumerDashboard() {
           <CardContent>
             {products.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {products.map((product) => {
-                  const isFavorite = favorites.some((f) => f.id === product.id);
-                  const daysUntilExpiry = Math.ceil(
-                    (new Date(product.expiryDate).getTime() -
-                      new Date().getTime()) /
-                      (1000 * 60 * 60 * 24)
-                  );
+                {products
+                  .filter((p) => {
+                    const matchesSearch = searchQuery
+                      ? [
+                          p.name,
+                          p.description,
+                          p.businessName,
+                          ...(p.tags || []),
+                        ]
+                          .join(" ")
+                          .toLowerCase()
+                          .includes(searchQuery.toLowerCase())
+                      : true;
+                    const matchesCategory =
+                      !selectedCategory ||
+                      selectedCategory === "all" ||
+                      p.category?.toLowerCase() ===
+                        selectedCategory.toLowerCase();
+                    return matchesSearch && matchesCategory;
+                  })
+                  .map((product) => {
+                    const isFavorite = favorites.some(
+                      (f) => f.id === product.id
+                    );
+                    const daysUntilExpiry = Math.ceil(
+                      (new Date(product.expiryDate).getTime() -
+                        new Date().getTime()) /
+                        (1000 * 60 * 60 * 24)
+                    );
 
-                  return (
-                    <Card
-                      key={product.id}
-                      className="cursor-pointer hover:shadow-lg transition-shadow"
-                    >
-                      <div className="relative">
-                        <img
-                          src={product.imageUrl}
-                          alt={product.name}
-                          className="w-full h-48 object-cover rounded-t-lg"
-                          onClick={() => handleProductClick(product)}
-                        />
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="absolute top-2 right-2 bg-white/80 hover:bg-white"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleToggleFavorite(product);
-                          }}
-                        >
-                          <Heart
-                            className={`h-4 w-4 ${
-                              isFavorite ? "fill-red-500 text-red-500" : ""
-                            }`}
-                          />
-                        </Button>
-                        <Badge className="absolute top-2 left-2 bg-red-500 text-white">
-                          -{product.discountPercentage}%
-                        </Badge>
-                      </div>
-                      <CardContent
-                        className="p-4"
-                        onClick={() => handleProductClick(product)}
+                    return (
+                      <Card
+                        key={product.id}
+                        className="cursor-pointer hover:shadow-lg transition-shadow"
                       >
-                        <h3 className="font-semibold text-lg mb-2">
-                          {product.name}
-                        </h3>
-                        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                          {product.description}
-                        </p>
-
-                        <div className="flex justify-between items-center mb-3">
-                          <div>
-                            <span className="text-lg font-bold text-green-600">
-                              ${product.discountedPrice}
-                            </span>
-                            <span className="text-sm text-muted-foreground line-through ml-2">
-                              ${product.originalPrice}
-                            </span>
-                          </div>
-                          <Badge
-                            variant={
-                              daysUntilExpiry <= 1 ? "destructive" : "secondary"
-                            }
+                        <div className="relative">
+                          <img
+                            src={product.imageUrl}
+                            alt={product.name}
+                            className="w-full h-48 object-cover rounded-t-lg"
+                            onClick={() => handleProductClick(product)}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="absolute top-2 right-2 bg-white/80 hover:bg-white"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleFavorite(product);
+                            }}
                           >
-                            <Clock className="w-3 h-3 mr-1" />
-                            {daysUntilExpiry}d
+                            <Heart
+                              className={`h-4 w-4 ${
+                                isFavorite ? "fill-red-500 text-red-500" : ""
+                              }`}
+                            />
+                          </Button>
+                          <Badge className="absolute top-2 left-2 bg-red-500 text-white">
+                            -{product.discountPercentage}%
                           </Badge>
                         </div>
+                        <CardContent
+                          className="p-4"
+                          onClick={() => handleProductClick(product)}
+                        >
+                          <h3 className="font-semibold text-lg mb-2">
+                            {product.name}
+                          </h3>
+                          <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                            {product.description}
+                          </p>
 
-                        <div className="flex items-center text-sm text-muted-foreground mb-3">
-                          <MapPin className="w-4 h-4 mr-1" />
-                          <span className="truncate">
-                            {product.businessName}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">
-                            {product.quantity} left
-                          </span>
-                          {product.isOrganic && (
+                          <div className="flex justify-between items-center mb-3">
+                            <div>
+                              <span className="text-lg font-bold text-green-600">
+                                ${product.discountedPrice}
+                              </span>
+                              <span className="text-sm text-muted-foreground line-through ml-2">
+                                ${product.originalPrice}
+                              </span>
+                            </div>
                             <Badge
-                              variant="outline"
-                              className="text-green-600 border-green-600"
+                              variant={
+                                daysUntilExpiry <= 1
+                                  ? "destructive"
+                                  : "secondary"
+                              }
                             >
-                              <Leaf className="w-3 h-3 mr-1" />
-                              Organic
+                              <Clock className="w-3 h-3 mr-1" />
+                              {daysUntilExpiry}d
                             </Badge>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+                          </div>
+
+                          <div className="flex items-center text-sm text-muted-foreground mb-3">
+                            <MapPin className="w-4 h-4 mr-1" />
+                            <span className="truncate">
+                              {product.businessName}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-muted-foreground">
+                              {product.quantity} left
+                            </span>
+                            {product.isOrganic && (
+                              <Badge
+                                variant="outline"
+                                className="text-green-600 border-green-600"
+                              >
+                                <Leaf className="w-3 h-3 mr-1" />
+                                Organic
+                              </Badge>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
               </div>
             ) : (
               <div className="text-center py-12 text-muted-foreground">
@@ -1020,22 +1010,42 @@ export function ConsumerDashboard() {
                       </span>
                     </div>
 
-                    <Button
-                      className={`w-full ${
-                        !walletConnected
-                          ? "bg-orange-600 hover:bg-orange-700"
-                          : ""
-                      }`}
-                      onClick={handleOrder}
-                      disabled={processing}
-                    >
-                      <CreditCard className="w-4 h-4 mr-2" />
-                      {processing
-                        ? "Processing..."
-                        : walletConnected
-                        ? "Order with Hedera Pay"
-                        : "Connect Wallet to Order"}
-                    </Button>
+                    <div className="flex flex-col gap-2">
+                      {selectedProduct.hederaTransactionId && (
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => {
+                            const baseTx = selectedProduct.hederaTransactionId;
+                            const txId = baseTx.includes("@")
+                              ? baseTx.split("@")[0]
+                              : baseTx;
+                            window.open(
+                              `https://hashscan.io/testnet/transaction/${txId}`,
+                              "_blank"
+                            );
+                          }}
+                        >
+                          <ExternalLink className="w-4 h-4 mr-2" /> View TX
+                        </Button>
+                      )}
+                      <Button
+                        className={`w-full ${
+                          !walletConnected
+                            ? "bg-orange-600 hover:bg-orange-700"
+                            : ""
+                        }`}
+                        onClick={handleOrder}
+                        disabled={processing}
+                      >
+                        <CreditCard className="w-4 h-4 mr-2" />
+                        {processing
+                          ? "Processing..."
+                          : walletConnected
+                          ? "Order with Hedera Pay"
+                          : "Connect Wallet to Order"}
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1065,7 +1075,7 @@ export function ConsumerDashboard() {
                   : "Not available"}
               </p>
               <div className="mt-4 space-y-2">
-                {MOCK_PRODUCTS.map((product) => (
+                {products.slice(0, 10).map((product) => (
                   <div
                     key={product.id}
                     className="text-left bg-white p-3 rounded border"
@@ -1075,7 +1085,7 @@ export function ConsumerDashboard() {
                       {product.location}
                     </div>
                     <div className="text-sm text-green-600">
-                      {Math.floor(Math.random() * 5 + 1)} products available
+                      {product.quantity} items available
                     </div>
                   </div>
                 ))}

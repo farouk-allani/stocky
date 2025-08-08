@@ -1,19 +1,18 @@
-import OpenAI from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import sharp from "sharp";
 import fs from "fs";
 import path from "path";
 import { logger } from "../utils/logger.js";
 import { MockAiService } from "./mockAiService.js";
 
-// Initialize OpenAI client only if API key is available
-let openai: OpenAI | null = null;
-const USE_MOCK = !process.env.OPENAI_API_KEY;
+// Initialize Gemini client only if API key is available
+let genAI: GoogleGenerativeAI | null = null;
+const USE_MOCK = !process.env.GEMINI_API_KEY;
 
 if (!USE_MOCK) {
-  openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-  });
+  genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 } else {
-  logger.info("OpenAI API key not found, using mock AI service");
+  logger.info("Gemini API key not found, using mock AI service");
 }
 
 export interface AIAnalysisResult {
@@ -29,8 +28,8 @@ export const analyzeProductImage = async (
   imagePath: string
 ): Promise<AIAnalysisResult> => {
   try {
-    // Use mock service if OpenAI is not available
-    if (USE_MOCK || !openai) {
+    // Use mock service if Gemini is not available
+    if (USE_MOCK || !genAI) {
       logger.info("Using mock AI service for image analysis");
       const imageBuffer = fs.readFileSync(imagePath);
       const filename = path.basename(imagePath);
@@ -39,13 +38,83 @@ export const analyzeProductImage = async (
         filename
       );
 
+      // Simple color heuristic enrichment (no paid API)
+      let heuristicTags: string[] = [];
+      let heuristicDetected: string | null = null;
+      try {
+        const statsBuf = await sharp(imagePath)
+          .resize(128, 128, { fit: "inside" })
+          .removeAlpha()
+          .raw()
+          .toBuffer();
+        const pixels = statsBuf.length / 3;
+        let rSum = 0,
+          gSum = 0,
+          bSum = 0;
+        for (let i = 0; i < statsBuf.length; i += 3) {
+          rSum += statsBuf[i];
+          gSum += statsBuf[i + 1];
+          bSum += statsBuf[i + 2];
+        }
+        const r = rSum / pixels;
+        const g = gSum / pixels;
+        const b = bSum / pixels;
+        const avg = (r + g + b) / 3;
+        // Heuristic classification
+        // Red / Apple
+        if (r > 170 && g < 120 && b < 120) {
+          heuristicDetected = "Red Apple";
+          heuristicTags.push("fruit", "apple", "fresh");
+        } else if (g > 165 && r < 140 && b < 140) {
+          heuristicDetected = "Leafy Greens";
+          heuristicTags.push("vegetable", "greens", "fresh");
+        } else if (r > 200 && g > 200 && b > 200) {
+          heuristicDetected = "Dairy Product";
+          heuristicTags.push("dairy", "white", "perishable");
+        } else if (r > 185 && g > 160 && b < 110 && r - b > 70) {
+          heuristicDetected = "Bread";
+          heuristicTags.push("bakery", "bread", "carbs");
+        } else if (r > 180 && g > 180 && b < 150 && (r + g) / 2 - b > 60) {
+          // Yellow dominant (banana)
+          heuristicDetected = "Banana";
+          heuristicTags.push("fruit", "banana", "ripe");
+        } else if (avg < 70) {
+          heuristicDetected = "Dark Produce";
+          heuristicTags.push("produce", "dark", "needs-review");
+        }
+      } catch (heurErr) {
+        // Ignore heuristic failure
+      }
+
+      // Filename keyword heuristics
+      const baseName = filename.toLowerCase();
+      if (/banana/.test(baseName)) {
+        if (!heuristicDetected) heuristicDetected = "Banana";
+        heuristicTags.push("banana", "fruit", "yellow");
+      } else if (/apple/.test(baseName)) {
+        if (!heuristicDetected) heuristicDetected = "Apple";
+        heuristicTags.push("apple", "fruit");
+      } else if (/bread|loaf/.test(baseName)) {
+        if (!heuristicDetected) heuristicDetected = "Bread";
+        heuristicTags.push("bread", "bakery");
+      } else if (/milk/.test(baseName)) {
+        if (!heuristicDetected) heuristicDetected = "Milk";
+        heuristicTags.push("milk", "dairy");
+      }
+
+      const combinedTags = Array.from(
+        new Set([...(mockResult.tags || []), ...heuristicTags])
+      );
+      const detected = heuristicDetected || mockResult.productName;
+      const confidenceAdj = heuristicDetected ? 0.92 : 0.85;
+
       return {
-        confidence: 0.85,
-        tags: mockResult.tags,
+        confidence: confidenceAdj,
+        tags: combinedTags,
         freshness: mockResult.freshness,
         quality: mockResult.freshness,
         estimatedShelfLife: mockResult.estimatedShelfLife,
-        detectedItems: [mockResult.productName],
+        detectedItems: [detected],
       };
     }
 
@@ -53,51 +122,69 @@ export const analyzeProductImage = async (
     const imageBuffer = fs.readFileSync(imagePath);
     const base64Image = imageBuffer.toString("base64");
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4-vision-preview",
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: `Analyze this food product image and provide the following information in JSON format:
-              {
-                "detectedItems": ["item1", "item2"],
-                "freshness": 0.8,
-                "quality": 0.9,
-                "estimatedShelfLife": 72,
-                "tags": ["fresh", "organic", "vegetables"],
-                "confidence": 0.95
-              }
-              
-              Where:
-              - detectedItems: Array of food items you can identify
-              - freshness: Scale 0-1 (0=spoiled, 1=very fresh)
-              - quality: Scale 0-1 (0=poor, 1=excellent)
-              - estimatedShelfLife: Hours until expiry (estimate)
-              - tags: Relevant descriptive tags
-              - confidence: Overall confidence in analysis (0-1)`,
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:image/jpeg;base64,${base64Image}`,
-              },
-            },
-          ],
-        },
-      ],
-      max_tokens: 500,
-    });
+    // Get Gemini Pro Vision model
+    const model = genAI.getGenerativeModel({ model: "gemini-pro-vision" });
 
-    const content = response.choices[0]?.message?.content;
+    const prompt = `Analyze this food product image and provide the following information in JSON format:
+    {
+      "detectedItems": ["item1", "item2"],
+      "freshness": 0.8,
+      "quality": 0.9,
+      "estimatedShelfLife": 72,
+      "tags": ["fresh", "organic", "vegetables"],
+      "confidence": 0.95
+    }
+    
+    Where:
+    - detectedItems: Array of food items you can identify
+    - freshness: Scale 0-1 (0=spoiled, 1=very fresh)
+    - quality: Scale 0-1 (0=poor, 1=excellent)
+    - estimatedShelfLife: Hours until expiry (estimate)
+    - tags: Relevant descriptive tags
+    - confidence: Overall confidence in analysis (0-1)`;
+
+    const result = await model.generateContent([
+      prompt,
+      {
+        inlineData: {
+          data: base64Image,
+          mimeType: "image/jpeg",
+        },
+      },
+    ]);
+
+    const response = await result.response;
+    const content = response.text();
+
     if (!content) {
-      throw new Error("No response from OpenAI");
+      throw new Error("No response from Gemini");
     }
 
     // Parse the JSON response
-    const analysisResult = JSON.parse(content);
+    let analysisResult;
+    try {
+      // Extract JSON from the response (remove any markdown formatting)
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        analysisResult = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error("No JSON found in response");
+      }
+    } catch (parseError) {
+      logger.warn(
+        "Failed to parse Gemini response as JSON, using fallback",
+        parseError
+      );
+      // Fallback result
+      analysisResult = {
+        detectedItems: ["unknown food item"],
+        freshness: 0.7,
+        quality: 0.7,
+        estimatedShelfLife: 48,
+        tags: ["food", "product"],
+        confidence: 0.5,
+      };
+    }
 
     logger.info("AI analysis completed", { imagePath, result: analysisResult });
 
@@ -105,14 +192,108 @@ export const analyzeProductImage = async (
   } catch (error) {
     logger.error("AI analysis failed:", error);
 
-    // Return fallback result
-    return {
-      confidence: 0.1,
-      tags: ["unanalyzed"],
-      detectedItems: ["unknown"],
-      freshness: 0.5,
-      quality: 0.5,
-    };
+    // Enhanced fallback logic: try mock service, then heuristic, then minimal fallback
+    try {
+      const imageBuffer = fs.readFileSync(imagePath);
+      // Attempt mock service for richer data
+      const filename = path.basename(imagePath);
+      const mock = await MockAiService.analyzeProductImage(
+        imageBuffer,
+        filename
+      );
+      // Apply same heuristic enrichment
+      let heuristicTags: string[] = [];
+      let heuristicDetected: string | null = null;
+      try {
+        const statsBuf = await sharp(imagePath)
+          .resize(128, 128, { fit: "inside" })
+          .removeAlpha()
+          .raw()
+          .toBuffer();
+        const pixels = statsBuf.length / 3;
+        let rSum = 0,
+          gSum = 0,
+          bSum = 0;
+        for (let i = 0; i < statsBuf.length; i += 3) {
+          rSum += statsBuf[i];
+          gSum += statsBuf[i + 1];
+          bSum += statsBuf[i + 2];
+        }
+        const r = rSum / pixels;
+        const g = gSum / pixels;
+        const b = bSum / pixels;
+        const avg = (r + g + b) / 3;
+        if (r > 170 && g < 120 && b < 120) {
+          heuristicDetected = "Red Apple";
+          heuristicTags.push("fruit", "apple", "fresh");
+        } else if (g > 165 && r < 140 && b < 140) {
+          heuristicDetected = "Leafy Greens";
+          heuristicTags.push("vegetable", "greens", "fresh");
+        } else if (r > 200 && g > 200 && b > 200) {
+          heuristicDetected = "Dairy Product";
+          heuristicTags.push("dairy", "white", "perishable");
+        } else if (r > 185 && g > 160 && b < 110 && r - b > 70) {
+          heuristicDetected = "Bread";
+          heuristicTags.push("bakery", "bread", "carbs");
+        } else if (r > 180 && g > 180 && b < 150 && (r + g) / 2 - b > 60) {
+          heuristicDetected = "Banana";
+          heuristicTags.push("fruit", "banana", "ripe");
+        } else if (avg < 70) {
+          heuristicDetected = "Dark Produce";
+          heuristicTags.push("produce", "dark", "needs-review");
+        }
+      } catch {}
+      const baseName = filename.toLowerCase();
+      if (/banana/.test(baseName)) {
+        if (!heuristicDetected) heuristicDetected = "Banana";
+        heuristicTags.push("banana", "fruit", "yellow");
+      } else if (/apple/.test(baseName)) {
+        if (!heuristicDetected) heuristicDetected = "Apple";
+        heuristicTags.push("apple", "fruit");
+      } else if (/bread|loaf/.test(baseName)) {
+        if (!heuristicDetected) heuristicDetected = "Bread";
+        heuristicTags.push("bread", "bakery");
+      } else if (/milk/.test(baseName)) {
+        if (!heuristicDetected) heuristicDetected = "Milk";
+        heuristicTags.push("milk", "dairy");
+      }
+      const combinedTags = Array.from(
+        new Set([...(mock.tags || []), ...heuristicTags])
+      );
+      const detected = heuristicDetected || mock.productName;
+      return {
+        confidence: heuristicDetected ? 0.78 : 0.6,
+        tags: combinedTags,
+        freshness: mock.freshness / 100,
+        quality: mock.freshness / 100,
+        estimatedShelfLife: mock.estimatedShelfLife,
+        detectedItems: [detected],
+      };
+    } catch (mockErr) {
+      logger.warn(
+        "Mock AI service fallback failed, applying heuristics",
+        mockErr
+      );
+
+      // Simple heuristic based on filename keywords
+      const base = path.basename(imagePath).toLowerCase();
+      const tags: string[] = [];
+      if (/apple|banana|orange|fruit/.test(base)) tags.push("fruit", "fresh");
+      if (/bread|bakery/.test(base)) tags.push("bakery", "carbs");
+      if (/milk|dairy|cheese|yogurt/.test(base)) tags.push("dairy", "protein");
+      if (/meat|chicken|beef|pork/.test(base)) tags.push("meat", "protein");
+      if (/spinach|lettuce|veg|vegetable/.test(base))
+        tags.push("vegetable", "greens");
+      const detected = tags.length ? [tags[0]] : ["unknown item"];
+      return {
+        confidence: tags.length ? 0.45 : 0.2,
+        tags: tags.length ? tags : ["needs-review"],
+        detectedItems: detected,
+        freshness: 0.6,
+        quality: 0.55,
+        estimatedShelfLife: 48,
+      };
+    }
   }
 };
 
@@ -121,8 +302,8 @@ export const generateProductDescription = async (
   tags: string[]
 ): Promise<string> => {
   try {
-    // Use mock service if OpenAI is not available
-    if (USE_MOCK || !openai) {
+    // Use mock service if Gemini is not available
+    if (USE_MOCK || !genAI) {
       logger.info("Using mock AI service for product description");
       return await MockAiService.generateProductDescription(
         productName,
@@ -130,24 +311,18 @@ export const generateProductDescription = async (
       );
     }
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        {
-          role: "user",
-          content: `Generate a brief, appealing product description for "${productName}" with these characteristics: ${tags.join(
-            ", "
-          )}. 
-          Keep it under 100 words and focus on freshness, quality, and value.`,
-        },
-      ],
-      max_tokens: 150,
-    });
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
-    return (
-      response.choices[0]?.message?.content ||
-      `Fresh ${productName} - high quality and great value!`
-    );
+    const prompt = `Generate a brief, appealing product description for "${productName}" with these characteristics: ${tags.join(
+      ", "
+    )}. 
+    Keep it under 100 words and focus on freshness, quality, and value.`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+
+    return text || `Fresh ${productName} - high quality and great value!`;
   } catch (error) {
     logger.error("Description generation failed:", error);
     return `Fresh ${productName} - high quality and great value!`;
@@ -173,8 +348,8 @@ export const categorizeProduct = async (
       "OTHER",
     ];
 
-    // Use mock service if OpenAI is not available
-    if (USE_MOCK || !openai) {
+    // Use mock service if Gemini is not available
+    if (USE_MOCK || !genAI) {
       logger.info("Using mock AI service for product categorization");
       const productLower = productName.toLowerCase();
 
@@ -209,21 +384,16 @@ export const categorizeProduct = async (
       return "OTHER";
     }
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        {
-          role: "user",
-          content: `Categorize "${productName}" with tags ${tags.join(
-            ", "
-          )} into one of these categories: ${categories.join(", ")}. 
-          Respond with only the category name.`,
-        },
-      ],
-      max_tokens: 10,
-    });
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
-    const category = response.choices[0]?.message?.content?.toUpperCase();
+    const prompt = `Categorize "${productName}" with tags ${tags.join(
+      ", "
+    )} into one of these categories: ${categories.join(", ")}. 
+    Respond with only the category name.`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const category = response.text().trim().toUpperCase();
 
     if (categories.includes(category || "")) {
       return category!;

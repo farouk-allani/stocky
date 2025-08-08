@@ -3,6 +3,10 @@ import { getDatabase } from "../config/database.js";
 import { asyncHandler, createError } from "../middleware/errorHandler.js";
 import { authenticateToken } from "../middleware/auth.js";
 import { validateOrder } from "../utils/validation.js";
+import {
+  createTransaction as evmCreateTx,
+  completeTransaction as evmCompleteTx,
+} from "../services/evmSupplyChainService.js";
 
 const router = express.Router();
 
@@ -166,6 +170,12 @@ router.post(
     }
 
     const { items, pickupTime, notes, paymentMethod } = value;
+    const { paymentTxHash } = req.body || {};
+    // Optional pre-created on-chain transaction info from client wallet
+    const {
+      supplyChainTransactionId: clientSupplyChainTxId,
+      supplyChainTxHash: clientSupplyChainTxHash,
+    } = req.body || {};
 
     const db = getDatabase();
 
@@ -209,6 +219,39 @@ router.post(
       });
     }
 
+    // Optional on-chain transaction (best-effort)
+    let chainTxHash: string | undefined = clientSupplyChainTxHash;
+    let supplyChainTransactionId: string | undefined = clientSupplyChainTxId;
+    if (!clientSupplyChainTxId || !clientSupplyChainTxHash) {
+      try {
+        // Use the first item's product to determine on-chain product id (if registered)
+        const firstProduct = await db.product.findUnique({
+          where: { id: items[0].productId },
+        });
+        const onChainProductId = firstProduct?.productOnChainId; // this is the id used during registerProduct
+        if (onChainProductId) {
+          supplyChainTransactionId = `tx-${Date.now()}`;
+          // Contract expects amount >= product.currentPrice (registered price unit scaled 1e18 at registration time)
+          const registeredPriceWei = BigInt(
+            Math.round(firstProduct.currentPrice * 1e18)
+          ).toString();
+          chainTxHash = await evmCreateTx(
+            supplyChainTransactionId,
+            onChainProductId,
+            req.user.id,
+            registeredPriceWei
+          );
+        } else {
+          console.warn(
+            "Skipping on-chain order tx: product not registered on-chain",
+            { productId: items[0].productId }
+          );
+        }
+      } catch (chainErr) {
+        console.warn("On-chain order transaction create failed", chainErr);
+      }
+    }
+
     // Create order
     const order = await db.order.create({
       data: {
@@ -219,6 +262,10 @@ router.post(
         pickupTime,
         notes,
         paymentMethod,
+        isPaid: !!paymentTxHash,
+        hederaTransactionId: paymentTxHash || chainTxHash,
+        supplyChainTransactionId,
+        supplyChainTxHash: chainTxHash,
         items: {
           create: orderItems,
         },
@@ -336,6 +383,23 @@ router.patch(
         },
       },
     });
+
+    // If marking picked up, optionally complete on-chain transaction
+    if (status === "PICKED_UP" && order.supplyChainTransactionId) {
+      try {
+        const completeHash = await evmCompleteTx(
+          order.supplyChainTransactionId
+        ).catch(() => undefined);
+        if (completeHash) {
+          await db.order.update({
+            where: { id },
+            data: { supplyChainCompleteTxHash: completeHash },
+          });
+        }
+      } catch (chainErr) {
+        console.warn("On-chain completeTransaction failed", chainErr);
+      }
+    }
 
     // Emit real-time notification to customer
     const io = req.app.get("io");

@@ -6,11 +6,11 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-// SQLite doesn't support enums, using string fields with default values
+// PostgreSQL database with enum support
 
 model User {
   id        String  @id @default(cuid())
@@ -43,14 +43,15 @@ model User {
 }
 
 model Business {
-  id          String  @id @default(cuid())
-  name        String
-  description String?
-  address     String
-  phone       String
-  email       String
-  latitude    Float?
-  longitude   Float?
+  id            String  @id @default(cuid())
+  name          String
+  description   String?
+  address       String
+  phone         String
+  email         String
+  latitude      Float?
+  longitude     Float?
+  walletAddress String? // EVM/Hedera EVM wallet address to receive HBAR payments
 
   // Owner
   ownerId String
@@ -130,7 +131,10 @@ model Product {
   reviews    Review[]
 
   // Blockchain tracking
-  hederaTransactionId String?
+  hederaTransactionId  String?
+  // On-chain (EVM SupplyChain) tracking
+  productOnChainId     String? // productId used in SupplyChain contract
+  productOnChainTxHash String? // tx hash of registerProduct
 
   @@map("products")
 }
@@ -157,11 +161,19 @@ model Order {
   notes      String?
 
   // Payment
-  paymentMethod String? // cash, card, hedera
-  isPaid        Boolean @default(false)
+  paymentMethod         String? // cash, card, hedera
+  isPaid                Boolean @default(false)
+  paymentId             String? // StockyPayments.paymentId
+  paymentEscrowTxHash   String? // tx hash of escrowPayment
+  paymentStatus         String? // PENDING, ESCROWED, COMPLETED, REFUNDED, DISPUTED
+  paymentCompleteTxHash String? // tx hash from completePayment (release)
 
   // Blockchain
-  hederaTransactionId String?
+  hederaTransactionId       String?
+  // On-chain SupplyChain transaction fields
+  supplyChainTransactionId  String? // transactionId argument used on-chain
+  supplyChainTxHash         String? // tx hash from createTransaction
+  supplyChainCompleteTxHash String? // tx hash from completeTransaction
 
   // Timestamps
   createdAt DateTime @default(now())

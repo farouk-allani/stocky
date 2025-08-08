@@ -9,6 +9,14 @@ import {
   getAccountBalance,
   recordTransaction,
 } from "../services/hederaService.js";
+import { contracts } from "../services/evmContracts.js";
+import {
+  registerBusiness,
+  registerProduct,
+  updateProductPrice,
+  mintCarbonCredit,
+  retireCarbonCredit,
+} from "../services/evmSupplyChainService.js";
 
 const router = express.Router();
 
@@ -172,6 +180,215 @@ router.post(
       });
     } catch (error) {
       throw createError("Failed to track product on blockchain", 500);
+    }
+  })
+);
+
+// EVM SupplyChain stats (read-only)
+router.get(
+  "/supply-chain/stats",
+  authenticateToken,
+  asyncHandler(async (_req: any, res: any) => {
+    try {
+      const stats = await contracts.supplyChain.getPlatformStats();
+      res.json({
+        totalProducts: stats[0].toString(),
+        totalBusinesses: stats[1].toString(),
+        totalTransactions: stats[2].toString(),
+      });
+    } catch (error) {
+      throw createError("Failed to fetch supply chain stats", 500);
+    }
+  })
+);
+
+// ----- EVM WRITE OPERATIONS -----
+
+// Register Business
+router.post(
+  "/evm/business",
+  authenticateToken,
+  asyncHandler(async (req: any, res: any) => {
+    const { businessId, name, ownerName } = req.body;
+    if (!businessId || !name || !ownerName) {
+      throw createError("businessId, name, ownerName required", 400);
+    }
+    try {
+      const txHash = await registerBusiness(businessId, name, ownerName);
+      res.json({ txHash });
+    } catch (error: any) {
+      throw createError(error.message || "Failed to register business", 500);
+    }
+  })
+);
+
+// Register Product
+router.post(
+  "/evm/product",
+  authenticateToken,
+  asyncHandler(async (req: any, res: any) => {
+    const {
+      productId,
+      name,
+      businessId,
+      batchNumber,
+      manufacturedDate,
+      expiryDate,
+      originalPrice,
+      metadata,
+    } = req.body;
+    if (
+      !productId ||
+      !name ||
+      !businessId ||
+      !batchNumber ||
+      manufacturedDate == null ||
+      expiryDate == null ||
+      originalPrice == null
+    ) {
+      throw createError("Missing required product fields", 400);
+    }
+    try {
+      const txHash = await registerProduct({
+        productId,
+        name,
+        businessId,
+        batchNumber,
+        manufacturedDate,
+        expiryDate,
+        originalPrice,
+        metadata: metadata || "",
+      });
+      res.json({ txHash });
+    } catch (error: any) {
+      throw createError(error.message || "Failed to register product", 500);
+    }
+  })
+);
+
+// Update Product Price
+router.patch(
+  "/evm/product/:productId/price",
+  authenticateToken,
+  asyncHandler(async (req: any, res: any) => {
+    const { productId } = req.params;
+    const { newPrice, discount } = req.body;
+    if (newPrice == null) throw createError("newPrice required", 400);
+    try {
+      const txHash = await updateProductPrice(
+        productId,
+        newPrice,
+        discount || 0
+      );
+      res.json({ txHash });
+    } catch (error: any) {
+      throw createError(error.message || "Failed to update price", 500);
+    }
+  })
+);
+
+// Get on-chain product details (read-only)
+router.get(
+  "/evm/product/:productId",
+  authenticateToken,
+  asyncHandler(async (req: any, res: any) => {
+    const { productId } = req.params;
+    try {
+      const data = await contracts.supplyChain.getProduct(productId);
+      res.json({
+        productId,
+        name: data[0],
+        businessId: data[1],
+        originalPrice: data[2].toString(),
+        currentPrice: data[3].toString(),
+        discount: Number(data[4]),
+        status: Number(data[5]),
+        expiryDate: Number(data[6]),
+        metadata: data[7],
+      });
+    } catch (error: any) {
+      throw createError(
+        error.message || "Failed to fetch on-chain product",
+        500
+      );
+    }
+  })
+);
+
+// Mint Carbon Credit
+router.post(
+  "/evm/carbon/mint",
+  authenticateToken,
+  asyncHandler(async (req: any, res: any) => {
+    const { to, amount, projectId, metadataURI = "" } = req.body;
+    if (amount == null || !projectId)
+      throw createError("amount and projectId required", 400);
+    try {
+      const txHash = await mintCarbonCredit({
+        to,
+        amount,
+        projectId,
+        metadataURI,
+      });
+      res.json({ txHash });
+    } catch (error: any) {
+      throw createError(error.message || "Failed to mint carbon credit", 500);
+    }
+  })
+);
+
+// Retire Carbon Credit
+router.post(
+  "/evm/carbon/:tokenId/retire",
+  authenticateToken,
+  asyncHandler(async (req: any, res: any) => {
+    const { tokenId } = req.params;
+    try {
+      const txHash = await retireCarbonCredit(Number(tokenId));
+      res.json({ txHash });
+    } catch (error: any) {
+      throw createError(error.message || "Failed to retire carbon credit", 500);
+    }
+  })
+);
+
+// List Carbon Credits (on-chain enumeration)
+router.get(
+  "/evm/carbon/credits",
+  authenticateToken,
+  asyncHandler(async (_req: any, res: any) => {
+    try {
+      const total = await contracts.carbon.totalMinted();
+      const ids = await contracts.carbon.allTokenIds();
+      res.json({
+        total: total.toString(),
+        tokenIds: ids.map((x: any) => x.toString()),
+      });
+    } catch (error) {
+      throw createError("Failed to list carbon credits", 500);
+    }
+  })
+);
+
+// Get single Carbon Credit details
+router.get(
+  "/evm/carbon/credits/:tokenId",
+  authenticateToken,
+  asyncHandler(async (req: any, res: any) => {
+    const { tokenId } = req.params;
+    try {
+      const data = await contracts.carbon.getCredit(tokenId);
+      res.json({
+        tokenId,
+        amount: data[0].toString(),
+        projectId: data[1],
+        issuedAt: Number(data[2]),
+        retired: data[3],
+        retiredAt: Number(data[4]),
+        metadataURI: data[5],
+      });
+    } catch (error) {
+      throw createError("Failed to fetch credit", 500);
     }
   })
 );

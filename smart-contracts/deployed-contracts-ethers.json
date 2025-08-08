@@ -1,0 +1,9 @@
+{
+  "network": "hederaJsonRpc",
+  "deployedAt": "2025-08-08T13:17:35.256Z",
+  "Minimal": "0x43bc26D6f6B8918380ae971CF3222D36637aF8A4",
+  "StockySimple": "0xcAb91B59F62086B4Cb74a5ce4CDABC01F92E0eB2",
+  "StockySupplyChain": "0x302B95D409e5A375F7fEBf9D982699560ede6521",
+  "StockyPayments": "0x452180F7267BA041a6480a0Df5Daf2F8380e35C3",
+  "StockyCarbonCredits": "0x3Ce070053BA60E9183e4943579Cb905E3f1B4850"
+}

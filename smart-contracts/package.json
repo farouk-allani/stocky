@@ -3,18 +3,23 @@
   "version": "1.0.0",
   "description": "Smart contracts for Stocky platform on Hedera",
   "scripts": {
-    "compile": "solc --bin --abi contracts/*.sol -o build/",
-    "deploy": "node scripts/deploy.js",
+    "compile:solc": "npx solc --bin --abi --optimize contracts/StockySimple.sol -o build/",
+    "compile": "hardhat compile",
+    "deploy:hedera": "node scripts/deploy.js",
+    "deploy:jsonrpc": "hardhat run scripts/deploy-ethers.js --network hederaJsonRpc",
     "test": "hardhat test"
   },
   "dependencies": {
-    "@hashgraph/sdk": "^2.49.2",
-    "dotenv": "^16.4.5"
+    "@hashgraph/sdk": "^2.70.0",
+    "@openzeppelin/contracts": "^5.0.2",
+    "@openzeppelin/contracts-upgradeable": "^5.4.0",
+    "dotenv": "^16.6.1",
+    "ethers": "^5.8.0"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.2.3",
-    "hardhat": "^2.22.12",
-    "solc": "^0.8.26"
+    "hardhat": "^2.26.2",
+    "solc": "^0.8.30"
   },
   "keywords": [
     "blockchain",

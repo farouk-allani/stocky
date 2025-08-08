@@ -79,6 +79,9 @@ export const validateOrder = (data: any) => {
     pickupTime: Joi.date().optional(),
     notes: Joi.string().max(500).optional(),
     paymentMethod: Joi.string().valid("cash", "card", "hedera").optional(),
+    supplyChainTransactionId: Joi.string().optional(),
+    supplyChainTxHash: Joi.string().optional(),
+    paymentTxHash: Joi.string().optional(),
   });
 
   return schema.validate(data);

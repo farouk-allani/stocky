@@ -1,0 +1,37 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "Minimal",
+  "sourceName": "contracts/Minimal.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "v",
+          "type": "uint256"
+        }
+      ],
+      "name": "set",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "value",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x60808060405234601957600160005560a0908161001f8239f35b600080fdfe6080806040526004361015601257600080fd5b600090813560e01c9081633fa4f24514604e57506360fe47b114603457600080fd5b34604b576020366003190112604b57600435815580f35b80fd5b90503460665781600319360112606657602091548152f35b5080fdfea2646970667358221220331bd3ebecceef8782fa3de9bd1b80248289289a64ef3e3ad44018c6bddcf4a764736f6c63430008140033",
+  "deployedBytecode": "0x6080806040526004361015601257600080fd5b600090813560e01c9081633fa4f24514604e57506360fe47b114603457600080fd5b34604b576020366003190112604b57600435815580f35b80fd5b90503460665781600319360112606657602091548152f35b5080fdfea2646970667358221220331bd3ebecceef8782fa3de9bd1b80248289289a64ef3e3ad44018c6bddcf4a764736f6c63430008140033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

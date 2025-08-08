@@ -1,167 +1,188 @@
+// Hedera SDK deployment for multiple contracts compiled with Hardhat
 const {
   Client,
   ContractCreateTransaction,
-  ContractExecuteTransaction,
-  ContractFunctionParameters,
+  ContractCreateFlow,
   FileCreateTransaction,
+  FileAppendTransaction,
   PrivateKey,
   AccountId,
   Hbar,
 } = require("@hashgraph/sdk");
+const path = require("path");
 const fs = require("fs");
 require("dotenv").config();
 
-// Initialize Hedera client
-const client = Client.forTestnet();
+const operatorId = process.env.HEDERA_ACCOUNT_ID;
+const operatorKeyRaw = process.env.HEDERA_PRIVATE_KEY;
+if (!operatorId || !operatorKeyRaw) {
+  console.error("Missing HEDERA_ACCOUNT_ID or HEDERA_PRIVATE_KEY in .env");
+  process.exit(1);
+}
 
-// Set operator account
-const operatorAccountId = AccountId.fromString(process.env.HEDERA_ACCOUNT_ID);
-const operatorPrivateKey = PrivateKey.fromString(
-  process.env.HEDERA_PRIVATE_KEY
-);
-client.setOperator(operatorAccountId, operatorPrivateKey);
-
-async function deployContract(contractName, constructorParams = []) {
+function parsePrivateKey(raw) {
+  const r = raw.trim();
+  // Force DER ED25519 usage
   try {
-    console.log(`Deploying ${contractName}...`);
-
-    // Read compiled contract bytecode
-    const contractBytecode = fs.readFileSync(
-      `./build/${contractName}.bin`,
-      "utf8"
-    );
-
-    // Create file with contract bytecode
-    const fileCreateTx = new FileCreateTransaction()
-      .setContents(contractBytecode)
-      .setKeys([operatorPrivateKey.publicKey])
-      .setMaxTransactionFee(new Hbar(2));
-
-    const fileCreateTxResponse = await fileCreateTx.execute(client);
-    const fileCreateReceipt = await fileCreateTxResponse.getReceipt(client);
-    const fileId = fileCreateReceipt.fileId;
-
-    console.log(`Contract bytecode file created: ${fileId}`);
-
-    // Create contract
-    const contractCreateTx = new ContractCreateTransaction()
-      .setBytecodeFileId(fileId)
-      .setGas(2000000)
-      .setMaxTransactionFee(new Hbar(20));
-
-    // Add constructor parameters if provided
-    if (constructorParams.length > 0) {
-      const params = new ContractFunctionParameters();
-      constructorParams.forEach((param) => {
-        if (typeof param === "string") {
-          params.addString(param);
-        } else if (typeof param === "number") {
-          params.addUint256(param);
-        } else if (typeof param === "boolean") {
-          params.addBool(param);
-        }
-      });
-      contractCreateTx.setConstructorParameters(params);
-    }
-
-    const contractCreateTxResponse = await contractCreateTx.execute(client);
-    const contractCreateReceipt = await contractCreateTxResponse.getReceipt(
-      client
-    );
-    const contractId = contractCreateReceipt.contractId;
-
-    console.log(`${contractName} deployed successfully!`);
-    console.log(`Contract ID: ${contractId}`);
-    console.log(`Explorer: https://hashscan.io/testnet/contract/${contractId}`);
-
-    return contractId.toString();
-  } catch (error) {
-    console.error(`Error deploying ${contractName}:`, error);
-    throw error;
+    return PrivateKey.fromStringDer(r);
+  } catch (e) {
+    // fallback to generic
+    return PrivateKey.fromString(r);
   }
 }
 
-async function main() {
-  try {
-    console.log("Starting deployment process...");
-    console.log(`Operator Account: ${operatorAccountId}`);
+let operatorKey;
+try {
+  operatorKey = parsePrivateKey(operatorKeyRaw.trim());
+} catch (e) {
+  console.error("Private key parse error:", e.message);
+  process.exit(1);
+}
 
-    // Deploy StockySupplyChain contract
-    const supplyChainContractId = await deployContract("StockySupplyChain");
+const client = Client.forTestnet().setOperator(
+  AccountId.fromString(operatorId),
+  operatorKey
+);
+client.setRequestTimeout(60000);
 
-    // Deploy StockyPayments contract
-    const paymentsContractId = await deployContract("StockyPayments");
+// Map contract name to artifact (Hardhat output in artifacts/contracts/<Name>.sol/<Name>.json)
+// Adjust list to deploy progressively. Start with simplest to validate key/signature.
+let contractsToDeploy = [
+  { name: "Minimal", file: "Minimal.sol" },
+  { name: "StockySimple", file: "StockySimple.sol" },
+  { name: "StockySupplyChain", file: "StockySupplyChain.sol" },
+  { name: "StockyPayments", file: "StockyPayments.sol" },
+  { name: "StockyCarbonCredits", file: "StockyCarbonCredits.sol" },
+];
 
-    // Save contract addresses to a file
-    const contractAddresses = {
-      StockySupplyChain: supplyChainContractId,
-      StockyPayments: paymentsContractId,
-      deployedAt: new Date().toISOString(),
-      network: "testnet",
-    };
-
-    fs.writeFileSync(
-      "./deployed-contracts.json",
-      JSON.stringify(contractAddresses, null, 2)
-    );
-
-    console.log("\n=== Deployment Summary ===");
-    console.log(`StockySupplyChain: ${supplyChainContractId}`);
-    console.log(`StockyPayments: ${paymentsContractId}`);
-    console.log("\nContract addresses saved to deployed-contracts.json");
-
-    // Test basic functionality
-    console.log("\n=== Testing Basic Functionality ===");
-    await testContracts(supplyChainContractId, paymentsContractId);
-  } catch (error) {
-    console.error("Deployment failed:", error);
+// Allow limiting via env (e.g., DEPLOY_ONLY=StockySimple)
+if (process.env.DEPLOY_ONLY) {
+  contractsToDeploy = contractsToDeploy.filter(
+    (c) => c.name.toLowerCase() === process.env.DEPLOY_ONLY.toLowerCase()
+  );
+  if (contractsToDeploy.length === 0) {
+    console.error("DEPLOY_ONLY specified but no matching contract.");
     process.exit(1);
   }
 }
 
-async function testContracts(supplyChainId, paymentsId) {
+function loadBytecode(contractFile, contractName) {
+  // Hardhat artifacts path assumption
+  const artifactPath = path.join(
+    __dirname,
+    `../artifacts/contracts/${contractFile}/${contractName}.json`
+  );
+  if (!fs.existsSync(artifactPath)) {
+    throw new Error(
+      `Artifact not found for ${contractName}. Run 'npm run compile' first. (${artifactPath})`
+    );
+  }
+  const artifact = JSON.parse(fs.readFileSync(artifactPath, "utf8"));
+  return artifact.bytecode; // 0x prefixed
+}
+
+async function deployHedera(bytecodeHex, name) {
+  console.log(`\nDeploying ${name} ...`);
+  // Remove 0x for Hedera FileCreateTransaction
+  const bytecode = bytecodeHex.startsWith("0x")
+    ? bytecodeHex.substring(2)
+    : bytecodeHex;
+  console.log(`  Bytecode hex length: ${bytecode.length}`);
+  const byteBuf = Buffer.from(bytecode, "hex");
+  console.log(`  Bytecode bytes: ${byteBuf.length}`);
+
   try {
-    // Test StockySupplyChain - Get platform stats
-    console.log("Testing StockySupplyChain...");
+    // Hedera file chunking
+    const CHUNK_SIZE = 3500; // bytes per transaction (safe under 4KB limit)
+    let offset = 0;
+    // First chunk
+    const firstChunk = byteBuf.slice(0, CHUNK_SIZE);
+    const fileCreateTx = await new FileCreateTransaction()
+      .setKeys([operatorKey.publicKey])
+      .setContents(firstChunk)
+      .setMaxTransactionFee(new Hbar(5))
+      .execute(client);
+    const fileCreateRx = await fileCreateTx.getReceipt(client);
+    const fileId = fileCreateRx.fileId;
+    console.log(`  Bytecode file: ${fileId}`);
+    offset += firstChunk.length;
+    while (offset < byteBuf.length) {
+      const chunk = byteBuf.slice(offset, offset + CHUNK_SIZE);
+      const appendTx = await new FileAppendTransaction()
+        .setFileId(fileId)
+        .setContents(chunk)
+        .setMaxTransactionFee(new Hbar(2))
+        .execute(client);
+      await appendTx.getReceipt(client);
+      offset += chunk.length;
+      process.stdout.write(`  Appended ${offset}/${byteBuf.length} bytes\r`);
+    }
+    if (byteBuf.length > CHUNK_SIZE) console.log("  All chunks appended.");
 
-    const getStatsQuery = new ContractExecuteTransaction()
-      .setContractId(supplyChainId)
-      .setGas(100000)
-      .setFunction("getPlatformStats")
-      .setMaxTransactionFee(new Hbar(1));
-
-    const getStatsResponse = await getStatsQuery.execute(client);
-    console.log("✓ StockySupplyChain: getPlatformStats executed successfully");
-
-    // Test StockyPayments - Get platform stats
-    console.log("Testing StockyPayments...");
-
-    const getPaymentStatsQuery = new ContractExecuteTransaction()
-      .setContractId(paymentsId)
-      .setGas(100000)
-      .setFunction("getPlatformStats")
-      .setMaxTransactionFee(new Hbar(1));
-
-    const getPaymentStatsResponse = await getPaymentStatsQuery.execute(client);
-    console.log("✓ StockyPayments: getPlatformStats executed successfully");
-
-    console.log("\n✅ All contracts deployed and tested successfully!");
-  } catch (error) {
-    console.error("Contract testing failed:", error);
+    const createTx = await new ContractCreateTransaction()
+      .setBytecodeFileId(fileId)
+      .setGas(2_000_000)
+      .setMaxTransactionFee(new Hbar(30))
+      .execute(client);
+    const createReceipt = await createTx.getReceipt(client);
+    const contractId = createReceipt.contractId.toString();
+    console.log(`  Contract ID: ${contractId}`);
+    console.log(
+      `  Explorer: https://hashscan.io/testnet/contract/${contractId}`
+    );
+    return contractId;
+  } catch (e) {
+    console.warn(
+      `  Primary method failed (${e.message}), trying ContractCreateFlow...`
+    );
+    const flow = new ContractCreateFlow()
+      .setGas(2_000_000)
+      .setBytecode(byteBuf);
+    const flowResp = await flow.execute(client);
+    const receipt = await flowResp.getReceipt(client);
+    const contractId = receipt.contractId.toString();
+    console.log(`  Contract ID (flow): ${contractId}`);
+    console.log(
+      `  Explorer: https://hashscan.io/testnet/contract/${contractId}`
+    );
+    return contractId;
   }
 }
 
-// Run deployment
-if (require.main === module) {
-  main()
-    .then(() => {
-      console.log("\nDeployment completed!");
-      process.exit(0);
-    })
-    .catch((error) => {
-      console.error("Deployment script failed:", error);
-      process.exit(1);
-    });
+async function main() {
+  const results = {
+    network: "hedera-testnet",
+    deployedAt: new Date().toISOString(),
+  };
+  for (const c of contractsToDeploy) {
+    try {
+      console.log(`\n=== ${c.name} ===`);
+      const bytecode = loadBytecode(c.file, c.name);
+      const id = await deployHedera(bytecode, c.name);
+      results[c.name] = id;
+    } catch (e) {
+      console.error(`Failed deploying ${c.name}:`, e.stack || e.message);
+      // Stop early if the simplest contract fails
+      if (c.name === "StockySimple") {
+        console.error(
+          "Aborting subsequent deployments until key/network issue resolved."
+        );
+        break;
+      }
+    }
+  }
+  fs.writeFileSync(
+    path.join(__dirname, "../deployed-contracts.json"),
+    JSON.stringify(results, null, 2)
+  );
+  console.log("\nDeployment summary saved to deployed-contracts.json");
 }
 
-module.exports = { deployContract, testContracts };
+if (require.main === module) {
+  main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}
+
+module.exports = { main };

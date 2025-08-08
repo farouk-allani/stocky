@@ -13,7 +13,7 @@ class APIClient {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const token = localStorage.getItem("authToken");
+    const token = localStorage.getItem("token");
 
     const config: RequestInit = {
       headers: {
@@ -65,7 +65,16 @@ class APIClient {
     if (params?.search) queryParams.append("search", params.search);
 
     const query = queryParams.toString();
-    return this.request<any[]>(`/api/products${query ? `?${query}` : ""}`);
+    const data = await this.request<any>(
+      `/api/products${query ? `?${query}` : ""}`
+    );
+    // Backend returns { products: [...], pagination: {...} }
+    if (data && Array.isArray(data.products)) {
+      return data.products;
+    }
+    // Fallback: if already array (older behavior)
+    if (Array.isArray(data)) return data;
+    return [];
   }
 
   async getProductById(id: string) {
@@ -73,10 +82,33 @@ class APIClient {
   }
 
   async createProduct(productData: any) {
-    return this.request<any>("/api/products", {
+    const data = await this.request<any>("/api/products", {
       method: "POST",
       body: JSON.stringify(productData),
     });
+    return data?.product || data; // unwrap { product }
+  }
+
+  async createProductWithImage(productData: any, imageFile: File) {
+    const token = localStorage.getItem("token");
+    const formData = new FormData();
+    Object.entries(productData).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) formData.append(k, String(v));
+    });
+    formData.append("image", imageFile);
+    const response = await fetch(`${this.baseURL}/api/products`, {
+      method: "POST",
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: formData,
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.message || "Failed to create product with image");
+    }
+    const data = await response.json();
+    return data?.product || data;
   }
 
   async updateProduct(id: string, productData: any) {
@@ -97,8 +129,8 @@ class APIClient {
     const formData = new FormData();
     formData.append("image", imageFile);
 
-    const token = localStorage.getItem("authToken");
-    const response = await fetch(`${this.baseURL}/api/ai/analyze`, {
+    const token = localStorage.getItem("token");
+    const response = await fetch(`${this.baseURL}/api/ai/analyze-image`, {
       method: "POST",
       headers: {
         ...(token && { Authorization: `Bearer ${token}` }),
@@ -115,32 +147,23 @@ class APIClient {
 
   // Order endpoints
   async createOrder(orderData: any) {
-    // Mock order creation for demo - simulate network delay
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    return this.request<any>("/api/orders", {
+      method: "POST",
+      body: JSON.stringify(orderData),
+    });
+  }
 
-    // Return mock order object
-    return {
-      id: `order_${Date.now()}`,
-      productId: orderData.productId,
-      quantity: orderData.quantity,
-      totalAmount: orderData.totalAmount,
-      status: "CONFIRMED",
-      pickupTime: orderData.pickupTime,
-      paymentMethod: orderData.paymentMethod,
-      notes: orderData.notes,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      customer: {
-        id: "user_123",
-        name: "Demo User",
-        email: "demo@example.com",
-      },
-      business: {
-        id: "business_456",
-        name: "Demo Business",
-        location: "Demo Location",
-      },
-    };
+  // Payments (server escrow)
+  async createPayment(payload: {
+    orderId: string;
+    amount: string | number;
+    buyerId: string;
+    sellerId: string;
+  }) {
+    return this.request<any>("/api/payments/create", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
   }
 
   async getOrders() {
@@ -180,6 +203,26 @@ class APIClient {
 
   async getHederaTransactionStatus(transactionId: string) {
     return this.request<any>(`/api/hedera/transaction/${transactionId}`);
+  }
+
+  // Carbon credits
+  async listCarbonCredits() {
+    return this.request<any>("/api/hedera/evm/carbon/credits");
+  }
+  async getCarbonCredit(tokenId: string) {
+    return this.request<any>(`/api/hedera/evm/carbon/credits/${tokenId}`);
+  }
+
+  async mintCarbonCredit(params: {
+    amount: number;
+    projectId: string;
+    metadataURI: string;
+    to?: string;
+  }) {
+    return this.request<any>("/api/hedera/evm/carbon/mint", {
+      method: "POST",
+      body: JSON.stringify(params),
+    });
   }
 
   // Consumer endpoints

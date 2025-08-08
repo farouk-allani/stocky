@@ -7,6 +7,10 @@ import { authenticateToken, requireRole } from "../middleware/auth.js";
 import { validateProduct } from "../utils/validation.js";
 import { analyzeProductImage } from "../services/aiService.js";
 import { updateProductPricing } from "../services/pricingService.js";
+import {
+  registerProduct as evmRegisterProduct,
+  registerBusiness as evmRegisterBusiness,
+} from "../services/evmSupplyChainService.js";
 
 const router = express.Router();
 
@@ -33,7 +37,6 @@ const upload = multer({
   },
 });
 
-// Get all products with filters
 router.get(
   "/",
   asyncHandler(async (req: any, res: any) => {
@@ -50,184 +53,158 @@ router.get(
       sortOrder = "desc",
     } = req.query;
 
-    // Mock products data for demo
-    const mockProducts = [
-      {
-        id: "1",
-        name: "Organic Bananas",
-        description:
-          "Fresh organic bananas, slightly overripe - perfect for smoothies!",
-        originalPrice: 4.99,
-        discountedPrice: 2.99,
-        discountPercentage: 40,
-        expiryDate: "2025-08-09",
-        category: "Fruits",
-        imageUrl:
-          "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=400",
-        businessId: "1",
-        businessName: "Green Grocer",
-        location: "Downtown Market, 123 Main St",
-        latitude: 40.7128,
-        longitude: -74.006,
-        quantity: 15,
-        status: "ACTIVE",
-        isOrganic: true,
-        tags: ["organic", "fruit", "healthy"],
-        createdAt: "2025-08-07T08:00:00Z",
-        updatedAt: "2025-08-07T08:00:00Z",
-        hederaTransactionId: "0.0.123456@1691404800.123456789",
-      },
-      {
-        id: "2",
-        name: "Artisan Bread",
-        description:
-          "Freshly baked sourdough bread from this morning, ends today!",
-        originalPrice: 8.99,
-        discountedPrice: 4.99,
-        discountPercentage: 44,
-        expiryDate: "2025-08-08",
-        category: "Bakery",
-        imageUrl:
-          "https://images.unsplash.com/photo-1549931319-a545dcf3bc73?w=400",
-        businessId: "2",
-        businessName: "Corner Bakery",
-        location: "Artisan Street, 456 Baker Ave",
-        latitude: 40.7589,
-        longitude: -73.9851,
-        quantity: 8,
-        status: "ACTIVE",
-        isOrganic: false,
-        tags: ["bread", "bakery", "artisan"],
-        createdAt: "2025-08-07T06:00:00Z",
-        updatedAt: "2025-08-07T06:00:00Z",
-        hederaTransactionId: "0.0.789012@1691404801.987654321",
-      },
-      {
-        id: "3",
-        name: "Premium Yogurt",
-        description:
-          "Greek yogurt variety pack, expires tomorrow but still delicious!",
-        originalPrice: 12.99,
-        discountedPrice: 6.99,
-        discountPercentage: 46,
-        expiryDate: "2025-08-08",
-        category: "Dairy",
-        imageUrl:
-          "https://images.unsplash.com/photo-1488477181946-6428a0291777?w=400",
-        businessId: "1",
-        businessName: "Green Grocer",
-        location: "Downtown Market, 123 Main St",
-        latitude: 40.7128,
-        longitude: -74.006,
-        quantity: 12,
-        status: "ACTIVE",
-        isOrganic: true,
-        tags: ["dairy", "protein", "healthy"],
-        createdAt: "2025-08-07T07:30:00Z",
-        updatedAt: "2025-08-07T07:30:00Z",
-        hederaTransactionId: "0.0.345678@1691404802.111222333",
-      },
-      {
-        id: "4",
-        name: "Fresh Salmon Fillets",
-        description: "Premium Atlantic salmon, perfect for tonight's dinner",
-        originalPrice: 18.99,
-        discountedPrice: 12.99,
-        discountPercentage: 32,
-        expiryDate: "2025-08-08",
-        category: "Seafood",
-        imageUrl:
-          "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=400",
-        businessId: "3",
-        businessName: "Ocean Fresh Market",
-        location: "Seaside Plaza, 789 Ocean Blvd",
-        latitude: 40.759,
-        longitude: -73.9845,
-        quantity: 6,
-        status: "ACTIVE",
-        isOrganic: false,
-        tags: ["seafood", "protein", "fresh"],
-        createdAt: "2025-08-07T09:00:00Z",
-        updatedAt: "2025-08-07T09:00:00Z",
-        hederaTransactionId: "0.0.567890@1691404803.444555666",
-      },
-      {
-        id: "5",
-        name: "Organic Baby Spinach",
-        description: "Fresh organic spinach leaves, great for salads",
-        originalPrice: 6.99,
-        discountedPrice: 3.99,
-        discountPercentage: 43,
-        expiryDate: "2025-08-09",
-        category: "Vegetables",
-        imageUrl:
-          "https://images.unsplash.com/photo-1576045057995-568f588f82fb?w=400",
-        businessId: "1",
-        businessName: "Green Grocer",
-        location: "Downtown Market, 123 Main St",
-        latitude: 40.7128,
-        longitude: -74.006,
-        quantity: 20,
-        status: "ACTIVE",
-        isOrganic: true,
-        tags: ["vegetables", "organic", "healthy"],
-        createdAt: "2025-08-07T10:00:00Z",
-        updatedAt: "2025-08-07T10:00:00Z",
-        hederaTransactionId: "0.0.234567@1691404804.777888999",
-      },
-    ];
+    const db = getDatabase();
+    const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // Apply filters
-    let filteredProducts = mockProducts;
+    // Build where clause
+    const where: any = {};
 
-    if (search) {
-      const searchLower = search.toLowerCase();
-      filteredProducts = filteredProducts.filter(
-        (product) =>
-          product.name.toLowerCase().includes(searchLower) ||
-          product.description.toLowerCase().includes(searchLower) ||
-          product.businessName.toLowerCase().includes(searchLower)
-      );
-    }
-
-    if (category && category !== "all") {
-      filteredProducts = filteredProducts.filter(
-        (product) => product.category.toLowerCase() === category.toLowerCase()
-      );
+    if (status) {
+      where.status = status;
     }
 
     if (businessId) {
-      filteredProducts = filteredProducts.filter(
-        (product) => product.businessId === businessId
-      );
+      where.businessId = businessId;
     }
 
-    if (minPrice) {
-      filteredProducts = filteredProducts.filter(
-        (product) => product.discountedPrice >= parseFloat(minPrice)
-      );
+    if (category && category !== "all") {
+      where.category = { equals: category, mode: "insensitive" };
     }
 
-    if (maxPrice) {
-      filteredProducts = filteredProducts.filter(
-        (product) => product.discountedPrice <= parseFloat(maxPrice)
-      );
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { description: { contains: search, mode: "insensitive" } },
+      ];
     }
 
-    // Apply pagination
-    const startIndex = (parseInt(page) - 1) * parseInt(limit);
-    const endIndex = startIndex + parseInt(limit);
-    const paginatedProducts = filteredProducts.slice(startIndex, endIndex);
+    if (minPrice || maxPrice) {
+      where.currentPrice = {};
+      if (minPrice) where.currentPrice.gte = parseFloat(minPrice);
+      if (maxPrice) where.currentPrice.lte = parseFloat(maxPrice);
+    }
 
-    res.json({
-      products: paginatedProducts,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total: filteredProducts.length,
-        pages: Math.ceil(filteredProducts.length / parseInt(limit)),
-      },
-    });
+    try {
+      const [products, total] = await Promise.all([
+        db.product.findMany({
+          where,
+          include: {
+            business: {
+              select: {
+                id: true,
+                name: true,
+                address: true,
+                phone: true,
+                isVerified: true,
+              },
+            },
+          },
+          skip,
+          take: parseInt(limit),
+          orderBy: { [sortBy]: sortOrder },
+        }),
+        db.product.count({ where }),
+      ]);
+
+      // Transform the data to match frontend expectations
+      const origin = `${req.protocol}://${req.get("host")}`;
+      const transformedProducts = products.map((product) => ({
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        originalPrice: product.originalPrice,
+        discountedPrice: product.currentPrice,
+        discountPercentage: Math.round(
+          ((product.originalPrice - product.currentPrice) /
+            product.originalPrice) *
+            100
+        ),
+        expiryDate: product.expiryDate.toISOString().split("T")[0],
+        category: product.category,
+        imageUrl: product.imageUrl
+          ? product.imageUrl.startsWith("/uploads/")
+            ? `${origin}${product.imageUrl}`
+            : product.imageUrl
+          : "https://images.unsplash.com/photo-1542838132-92c53300491e?w=400",
+        businessId: product.businessId,
+        businessName: product.business?.name || "Unknown Business",
+        location: product.business?.address || "Location not specified",
+        latitude: 40.7128, // Mock coordinates for demo
+        longitude: -74.006,
+        quantity: product.quantity,
+        status: product.status,
+        isOrganic: false, // Default value since not in schema
+        tags: product.aiTags ? JSON.parse(product.aiTags) : [],
+        createdAt: product.createdAt.toISOString(),
+        updatedAt: product.updatedAt.toISOString(),
+        hederaTransactionId: product.hederaTransactionId,
+        productOnChainId: (product as any).productOnChainId || null,
+        productOnChainTxHash: (product as any).productOnChainTxHash || null,
+        businessWalletAddress: (product.business as any)?.walletAddress || null,
+      }));
+
+      res.json({
+        products: transformedProducts,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          pages: Math.ceil(total / parseInt(limit)),
+        },
+      });
+    } catch (error) {
+      console.error("Database error:", error);
+      // Fallback to mock data if database fails
+      const mockProducts = [
+        {
+          id: "1",
+          name: "Organic Bananas",
+          description:
+            "Fresh organic bananas, slightly overripe - perfect for smoothies!",
+          originalPrice: 4.99,
+          discountedPrice: 2.99,
+          discountPercentage: 40,
+          expiryDate: "2025-08-09",
+          category: "Fruits",
+          imageUrl:
+            "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=400",
+          businessId: "1",
+          businessName: "Green Grocer",
+          location: "Downtown Market, 123 Main St",
+          latitude: 40.7128,
+          longitude: -74.006,
+          quantity: 15,
+          status: "ACTIVE",
+          isOrganic: true,
+          tags: ["organic", "fruit", "healthy"],
+          createdAt: "2025-08-07T08:00:00Z",
+          updatedAt: "2025-08-07T08:00:00Z",
+          hederaTransactionId: "0.0.123456@1691404800.123456789",
+        },
+      ];
+
+      // Apply filters to mock data
+      let filteredProducts = mockProducts;
+      if (search) {
+        const searchLower = search.toLowerCase();
+        filteredProducts = filteredProducts.filter(
+          (product) =>
+            product.name.toLowerCase().includes(searchLower) ||
+            product.description.toLowerCase().includes(searchLower) ||
+            product.businessName.toLowerCase().includes(searchLower)
+        );
+      }
+
+      res.json({
+        products: filteredProducts,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: filteredProducts.length,
+          pages: Math.ceil(filteredProducts.length / parseInt(limit)),
+        },
+      });
+    }
   })
 );
 
@@ -280,6 +257,9 @@ router.get(
         ...product,
         averageRating,
         reviewCount: product.reviews.length,
+        productOnChainId: (product as any).productOnChainId || null,
+        productOnChainTxHash: (product as any).productOnChainTxHash || null,
+        businessWalletAddress: (product.business as any)?.walletAddress || null,
       },
     });
   })
@@ -299,16 +279,31 @@ router.post(
 
     const db = getDatabase();
 
-    // Verify business ownership
-    const business = await db.business.findFirst({
+    // Verify business ownership (fallback: auto-select or create business if none supplied/exists)
+    let business = await db.business.findFirst({
       where: {
         ownerId: req.user.id,
         id: req.body.businessId,
       },
     });
-
     if (!business) {
-      throw createError("Business not found or access denied", 403);
+      // Try any existing business for this owner
+      business = await db.business.findFirst({
+        where: { ownerId: req.user.id },
+      });
+    }
+    if (!business) {
+      // Auto-create minimal business profile so product can be persisted
+      business = await db.business.create({
+        data: {
+          name: req.user.businessName || `${req.user.firstName}'s Business`,
+          description: "Auto-created business profile",
+          address: req.user.address || "Unknown address",
+          phone: req.user.phone || "N/A",
+          email: req.user.email,
+          ownerId: req.user.id,
+        },
+      });
     }
 
     let imageUrl = null;
@@ -326,14 +321,68 @@ router.post(
       }
     }
 
-    // Create product
+    // Ensure business registered on-chain (id is business.id)
+    let onChainTxHash: string | undefined;
+    let onChainProductId: string | undefined;
+    try {
+      await evmRegisterBusiness(
+        business.id,
+        business.name,
+        req.user.firstName + " " + req.user.lastName
+      ).catch(() => {});
+      onChainProductId = value.batchNumber
+        ? `${value.batchNumber}-${Date.now()}`
+        : `p-${Date.now()}`;
+      const expirySeconds = Math.floor(
+        new Date(value.expiryDate).getTime() / 1000
+      );
+      const manufacturedSeconds = value.manufacturedDate
+        ? Math.floor(new Date(value.manufacturedDate).getTime() / 1000)
+        : Math.floor(Date.now() / 1000);
+      const priceWei = BigInt(
+        Math.round(value.originalPrice * 1e18)
+      ).toString();
+      const registerHash = await evmRegisterProduct({
+        productId: onChainProductId,
+        name: value.name,
+        businessId: business.id,
+        batchNumber: value.batchNumber || "batch-1",
+        manufacturedDate: manufacturedSeconds,
+        expiryDate: expirySeconds,
+        originalPrice: priceWei,
+        metadata: JSON.stringify({ category: value.category }),
+      });
+      onChainTxHash = registerHash;
+    } catch (chainErr) {
+      console.warn("On-chain product registration failed", chainErr);
+    }
+
+    // Ensure category relation exists (by name); create if missing
+    let categoryRecord = await db.category.findFirst({
+      where: { name: value.category },
+    });
+    if (!categoryRecord) {
+      categoryRecord = await db.category.create({
+        data: {
+          name: value.category,
+          description: `${value.category} products`,
+        },
+      });
+    }
+
+    // Create product (store tx hash if available)
     const product = await db.product.create({
       data: {
         ...value,
         imageUrl,
         businessId: business.id,
+        categoryId: categoryRecord.id,
         aiConfidence: aiAnalysis?.confidence || null,
-        aiTags: aiAnalysis?.tags || [],
+        // aiTags stored as JSON string or null (Prisma expects String / Null)
+        aiTags: aiAnalysis?.tags ? JSON.stringify(aiAnalysis.tags) : null,
+        hederaTransactionId: onChainTxHash,
+        productOnChainId: onChainProductId,
+        productOnChainTxHash: onChainTxHash,
       },
       include: {
         business: {
@@ -347,9 +396,20 @@ router.post(
       },
     });
 
+    // Normalize image URL (absolute) to match GET /api/products formatting
+    const origin = `${req.protocol}://${req.get("host")}`;
+    const normalizedProduct = {
+      ...product,
+      imageUrl: product.imageUrl
+        ? product.imageUrl.startsWith("/uploads/")
+          ? `${origin}${product.imageUrl}`
+          : product.imageUrl
+        : null,
+    };
+
     res.status(201).json({
       message: "Product created successfully",
-      product,
+      product: normalizedProduct,
     });
   })
 );
