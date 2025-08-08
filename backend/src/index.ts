@@ -8,20 +8,20 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 
 // Import routes
-import authRoutes from "./routes/auth.js";
-import userRoutes from "./routes/users.js";
-import businessRoutes from "./routes/businesses.js";
-import productRoutes from "./routes/products.js";
-import orderRoutes from "./routes/orders.js";
-import aiRoutes from "./routes/ai.js";
-import hederaRoutes from "./routes/hedera.js";
-import paymentsRoutes from "./routes/payments.js";
+import authRoutes from "./routes/auth";
+import userRoutes from "./routes/users";
+import businessRoutes from "./routes/businesses";
+import productRoutes from "./routes/products";
+import orderRoutes from "./routes/orders";
+import aiRoutes from "./routes/ai";
+import hederaRoutes from "./routes/hedera";
+import paymentsRoutes from "./routes/payments";
 
 // Import middleware
-import { errorHandler } from "./middleware/errorHandler.js";
-import { logger } from "./utils/logger.js";
-import { initializeDatabase } from "./config/database.js";
-import { initializeRedis } from "./config/redis.js";
+import { errorHandler } from "./middleware/errorHandler";
+import { logger } from "./utils/logger";
+import { initializeDatabase } from "./config/database";
+import { initializeRedis } from "./config/redis";
 
 // Load environment variables
 dotenv.config();
@@ -248,3 +248,6 @@ process.on("SIGINT", () => {
 startServer();
 
 export { app, io };
+
+// For Vercel serverless deployment
+export default app;
