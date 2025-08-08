@@ -4,10 +4,11 @@ import {
   HEDERA_JSON_RPC,
   HEDERA_ECDSA_PRIVATE_KEY,
 } from "../config/contracts.js";
-import StockySimpleArtifact from "../../../smart-contracts/artifacts/contracts/StockySimple.sol/StockySimple.json" assert { type: "json" };
-import StockySupplyChainArtifact from "../../../smart-contracts/artifacts/contracts/StockySupplyChain.sol/StockySupplyChain.json" assert { type: "json" };
-import StockyPaymentsArtifact from "../../../smart-contracts/artifacts/contracts/StockyPayments.sol/StockyPayments.json" assert { type: "json" };
-import StockyCarbonCreditsArtifact from "../../../smart-contracts/artifacts/contracts/StockyCarbonCredits.sol/StockyCarbonCredits.json" assert { type: "json" };
+
+const StockySimpleArtifact = require("../../../smart-contracts/artifacts/contracts/StockySimple.sol/StockySimple.json");
+const StockySupplyChainArtifact = require("../../../smart-contracts/artifacts/contracts/StockySupplyChain.sol/StockySupplyChain.json");
+const StockyPaymentsArtifact = require("../../../smart-contracts/artifacts/contracts/StockyPayments.sol/StockyPayments.json");
+const StockyCarbonCreditsArtifact = require("../../../smart-contracts/artifacts/contracts/StockyCarbonCredits.sol/StockyCarbonCredits.json");
 
 const provider = new ethers.providers.JsonRpcProvider(HEDERA_JSON_RPC, {
   chainId: 296,
