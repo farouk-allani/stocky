@@ -1,5 +1,6 @@
 // API Configuration and Service
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || "https://stocky-hedera-api.vercel.app";
 
 // API Client
 class APIClient {

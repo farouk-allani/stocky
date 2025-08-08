@@ -70,10 +70,11 @@ function BusinessDashboard() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
-  const [analysis, setAnalysis] = useState<any>(null);
+  const [aiAnalysis, setAiAnalysis] = useState<any>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // Hedera wallet state
   const [walletConnected, setWalletConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [walletBalance, setWalletBalance] = useState<string | null>(null);
@@ -165,6 +166,7 @@ function BusinessDashboard() {
         setDataLoading(false);
       } catch (error) {
         console.error("Failed to load data:", error);
+        // Fallback to mock data for demo if API fails
         setStats(MOCK_BUSINESS_STATS);
 
         const mockProducts = [
@@ -326,11 +328,14 @@ function BusinessDashboard() {
     setShowAnalysisModal(true);
 
     try {
+      // Call backend AI analysis API
       const response = await api.analyzeProduct(file);
-      console.log("Analysis Response:", response);
+      console.log("AI Analysis Response:", response);
 
+      // Map backend response to frontend format
       const analysis = response.analysis;
 
+      // Transform backend analysis to expected frontend format
       const mockAnalysis = {
         productName: analysis.detectedItems?.[0] || "Unknown Product",
         category: analysis.tags?.includes("fruit")
@@ -371,8 +376,9 @@ function BusinessDashboard() {
         }`,
       };
 
-      setAnalysis(mockAnalysis);
+      setAiAnalysis(mockAnalysis);
 
+      // Auto-fill form with AI suggestions
       setProductForm((prev) => ({
         ...prev,
         name: mockAnalysis.productName,
@@ -398,16 +404,16 @@ function BusinessDashboard() {
         quality: "Unknown",
         suggestedDiscount: 20,
         description:
-          "Analysis failed. Please manually enter product details.",
+          "AI analysis failed. Please manually enter product details.",
       };
 
-      setAnalysis(fallbackAnalysis);
+      setAiAnalysis(fallbackAnalysis);
     } finally {
       setAnalyzing(false);
     }
   };
 
-  const handleAcceptAnalysis = () => {
+  const handleAcceptAIAnalysis = () => {
     setShowAnalysisModal(false);
     setShowAddProductModal(true);
   };
@@ -595,7 +601,7 @@ function BusinessDashboard() {
       });
 
       setShowAddProductModal(false);
-      setAnalysis(null);
+      setAiAnalysis(null);
 
       // Show success message with blockchain details
       toast.success("🎉 Product Successfully Added to Hedera Blockchain!", {
@@ -705,7 +711,7 @@ function BusinessDashboard() {
       });
 
       setShowAddProductModal(false);
-      setAnalysis(null);
+      setAiAnalysis(null);
 
       // Show demo success after network error
       if (
@@ -1107,7 +1113,8 @@ function BusinessDashboard() {
                       (1000 * 60 * 60 * 24)
                   );
                   const apiBase =
-                    import.meta.env.VITE_API_URL || "http://localhost:3001";
+                    import.meta.env.VITE_API_URL ||
+                    "https://stocky-hedera-api.vercel.app";
                   const displayImage = product.imageUrl?.startsWith("/uploads/")
                     ? `${apiBase}${product.imageUrl}`
                     : product.imageUrl;
@@ -1260,7 +1267,7 @@ function BusinessDashboard() {
                                   if (paymentId) {
                                     const resp = await fetch(
                                       (import.meta.env.VITE_API_URL ||
-                                        "http://localhost:3001") +
+                                        "https://stocky-hedera-api.vercel.app") +
                                         "/api/payments/complete",
                                       {
                                         method: "POST",
@@ -1405,7 +1412,7 @@ function BusinessDashboard() {
                 optimal discounts
               </p>
             </div>
-          ) : analysis ? (
+          ) : aiAnalysis ? (
             <div className="space-y-6">
               <Alert>
                 <Zap className="h-4 w-4" />
@@ -1420,21 +1427,21 @@ function BusinessDashboard() {
                   <h3 className="font-semibold mb-3">Product Details</h3>
                   <div className="space-y-2 text-sm">
                     <div>
-                      <strong>Name:</strong> {analysis.productName}
+                      <strong>Name:</strong> {aiAnalysis.productName}
                     </div>
                     <div>
-                      <strong>Category:</strong> {analysis.category}
+                      <strong>Category:</strong> {aiAnalysis.category}
                     </div>
                     <div>
                       <strong>Estimated Price:</strong> $
-                      {analysis.estimatedPrice}
+                      {aiAnalysis.estimatedPrice}
                     </div>
                     <div>
-                      <strong>Expiry Date:</strong> {analysis.expiryEstimate}
+                      <strong>Expiry Date:</strong> {aiAnalysis.expiryEstimate}
                     </div>
                     <div>
                       <strong>Organic:</strong>{" "}
-                      {analysis.isOrganic ? "✅ Yes" : "❌ No"}
+                      {aiAnalysis.isOrganic ? "✅ Yes" : "❌ No"}
                     </div>
                   </div>
                 </div>
@@ -1443,14 +1450,14 @@ function BusinessDashboard() {
                   <h3 className="font-semibold mb-3">🎯 AI Insights</h3>
                   <div className="space-y-2 text-sm">
                     <div>
-                      <strong>Freshness:</strong> {analysis.freshness}%
+                      <strong>Freshness:</strong> {aiAnalysis.freshness}%
                     </div>
                     <div>
-                      <strong>Quality:</strong> {analysis.quality}
+                      <strong>Quality:</strong> {aiAnalysis.quality}
                     </div>
                     <div>
                       <strong>Suggested Discount:</strong>{" "}
-                      {analysis.suggestedDiscount}%
+                      {aiAnalysis.suggestedDiscount}%
                     </div>
                   </div>
                 </div>
@@ -1461,12 +1468,12 @@ function BusinessDashboard() {
                   📝 AI Generated Description
                 </h3>
                 <p className="text-sm text-muted-foreground bg-gray-50 p-3 rounded">
-                  {analysis.description}
+                  {aiAnalysis.description}
                 </p>
               </div>
 
               <div className="flex gap-3">
-                <Button onClick={handleAcceptAnalysis} className="flex-1">
+                <Button onClick={handleAcceptAIAnalysis} className="flex-1">
                   <Plus className="w-4 h-4 mr-2" />
                   Accept & Add Product
                 </Button>
